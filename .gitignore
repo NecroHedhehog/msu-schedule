@@ -1,25 +1,31 @@
-# Секреты
+# secrets
 .env
 
-# База данных
+# parser configs (contain site-specific selectors)
+parsers/config/*.json
+!parsers/config/example.json
+
+# database
 data/
 
-# Python
+# raw HTML files
+*.html
+
+# python
 __pycache__/
 *.pyc
 *.pyo
 venv/
 .venv/
 
-# IDE
+# ide
 .vscode/
 .idea/
 *.swp
-*.swo
 
-# OS
+# os
 .DS_Store
 Thumbs.db
 
-# Кеш парсера
+# cache
 cache/

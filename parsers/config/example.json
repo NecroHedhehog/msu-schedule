@@ -1,0 +1,35 @@
+{
+    "_comment": "Шаблон конфигурации парсера. Скопируй в socio.json и заполни.",
+    "faculty_code": "example",
+    "faculty_name": "Название факультета",
+    "domain": "http://example.msu.ru",
+    "encoding": "cp1251",
+    "navigation": {
+        "entry_path": "/index.php",
+        "department_link_pattern": "\\?f=\\d+",
+        "program_link_pattern": "\\?sp=\\d+",
+        "year_select_name": "yr",
+        "group_link_pattern": "\\?gr=\\d+"
+    },
+    "schedule": {
+        "date_pattern": "\\d{2}\\.\\d{2}\\.\\d{4}",
+        "pair_cell_class": "YOUR_CLASS_HERE",
+        "lesson_element_id": "YOUR_ID_HERE",
+        "title_regex": "(.+?) по '(.+?)'",
+        "abbr_selector": {"tag": "font", "attrs": {"color": "#000000"}},
+        "type_values": ["Лк", "Сем", "Зч", "Экз"],
+        "pair_times": {
+            "1": ["09:00", "10:30"],
+            "2": ["10:45", "12:15"],
+            "3": ["12:55", "14:25"],
+            "4": ["14:40", "16:10"],
+            "5": ["16:25", "17:55"],
+            "6": ["18:00", "19:30"]
+        }
+    },
+    "request": {
+        "month_param": "pMns",
+        "month_format": "{month}.{year}",
+        "delay_seconds": 2
+    }
+}

@@ -1,18 +1,8 @@
 """
-Парсер расписания Социологического факультета МГУ.
-Источник: http://cacs.socio.msu.ru
+Парсер расписания социологического факультета МГУ.
 
-Навигация по сайту (4 уровня):
-  1. Отделение:   ?f=1 (Бакалавриат), ?f=2 (Магистратура)
-  2. Направление:  ?sp=1 (Социология), ?sp=5 (ППиСН), ?sp=2 (Менеджмент)...
-  3. Год набора:   select name=yr → value=42 (2025), value=39 (2024)...
-  4. Группа:       ?gr=279 (с403)
-
-Структура HTML расписания:
-  - Каждый день — <table> с датой в заголовке
-  - 6 строк = 6 пар (ячейки с class="TmTblC")
-  - Занятие — <div id="LESS"> с title="Лекция по 'Предмет'"
-  - Внутри: аббревиатура (зелёный bold), аудитория (bold), тип [Лк/Сем/Зч]
+Навигация: отделение → направление → год набора → группа.
+Расписание отдаётся помесячно, по неделям внутри дня.
 """
 
 import re
@@ -28,83 +18,72 @@ class SocioParser(BaseParser):
     FACULTY_NAME = 'Социологический факультет'
     DOMAIN = 'http://cacs.socio.msu.ru'
 
-    def parse(self) -> dict:
-        """Парсит расписание всех групп соцфака."""
-        print(f"\n🎓 Парсинг: {self.FACULTY_NAME}")
-        print(f"   Домен: {self.DOMAIN}\n")
+    ENCODING = 'cp1251'
 
-        # 1. Загружаем главную, находим отделения
-        main_page = self.download('/index.php', encoding='cp1251')
+    # CSS-селекторы и паттерны — специфичны для cacs.socio
+    DEPT_LINK_RE = re.compile(r'\?f=\d+')
+    PROG_LINK_RE = re.compile(r'\?sp=\d+')
+    GROUP_LINK_RE = re.compile(r'\?gr=\d+')
+    DATE_RE = re.compile(r'\d{2}\.\d{2}\.\d{4}')
+    TITLE_RE = re.compile(r"(.+?) по '(.+)'")
+    PAIR_CELL_CLASS = 'TmTblC'
+    LESSON_ID = 'LESS'
+    ABBR_COLOR = '#004000'
+    TYPE_KEYWORDS = ('Лк', 'Сем', 'Зч', 'Экз', 'Пр', 'Конс')
+
+    SKIP_DEPARTMENTS = {'Администрация'}
+
+    def parse(self) -> dict:
+        print(f"\n[socio] Начинаю парсинг: {self.DOMAIN}")
+
+        main_page = self.download('/index.php', encoding=self.ENCODING)
         if not main_page:
             return {'groups': []}
 
-        departments = self._find_departments(main_page)
-        print(f"  📋 Найдено отделений: {len(departments)}")
+        departments = self._find_links(main_page, self.DEPT_LINK_RE)
+        departments = [(n, u) for n, u in departments if n not in self.SKIP_DEPARTMENTS]
+        print(f"[socio] Отделений: {len(departments)}")
 
         all_groups = []
 
-        # 2. Для каждого отделения → направления → годы → группы
         for dept_name, dept_url in departments:
-            print(f"\n  📂 {dept_name}")
-            dept_page = self.download(dept_url, encoding='cp1251')
+            print(f"\n  [{dept_name}]")
+            dept_page = self.download(dept_url, encoding=self.ENCODING)
             if not dept_page:
                 continue
 
-            # Найти направления (sp=)
-            programs = self._find_programs(dept_page)
+            programs = self._find_links(dept_page, self.PROG_LINK_RE, strip_brackets=True)
             if not programs:
-                # Если направлений нет, считаем что группы прямо тут
                 programs = [('', None)]
-
-            print(f"     Направлений: {len(programs)}")
 
             for prog_name, prog_url in programs:
                 if prog_name:
-                    print(f"\n     📑 Направление: {prog_name}")
-
-                if prog_url:
-                    prog_page = self.download(prog_url, encoding='cp1251')
-                else:
-                    prog_page = dept_page
+                    print(f"    направление: {prog_name}")
+                prog_page = self.download(prog_url, encoding=self.ENCODING) if prog_url else dept_page
                 if not prog_page:
                     continue
 
-                # Найти годы набора
                 years = self._find_years(prog_page)
                 if not years:
                     years = [('', None)]
 
                 for year_label, year_url in years:
                     if year_label:
-                        print(f"        📅 Год набора: {year_label}")
-
-                    if year_url:
-                        year_page = self.download(year_url, encoding='cp1251')
-                    else:
-                        year_page = prog_page
+                        print(f"      год: {year_label}")
+                    year_page = self.download(year_url, encoding=self.ENCODING) if year_url else prog_page
                     if not year_page:
                         continue
 
-                    # Найти группы
-                    groups = self._find_groups(year_page)
+                    groups = self._find_links(year_page, self.GROUP_LINK_RE)
                     if not groups:
                         continue
 
-                    print(f"           Групп: {len(groups)}")
+                    for group_code, group_url in groups:
+                        site_id = re.search(r'gr=(\d+)', group_url)
+                        site_id = site_id.group(1) if site_id else ''
 
-                    # 3. Для каждой группы парсим расписание
-                    for group_code, group_url, site_id in groups:
-                        print(f"           👥 {group_code} (id={site_id})", end='')
-
-                        lessons = []
-                        for months_offset in [0, 1]:
-                            target = self._get_month_url(group_url, months_offset)
-                            page = self.download(target, encoding='cp1251')
-                            if page:
-                                month_lessons = self._parse_schedule_page(page)
-                                lessons.extend(month_lessons)
-
-                        print(f" → {len(lessons)} занятий")
+                        lessons = self._fetch_group_schedule(group_url)
+                        print(f"        {group_code}: {len(lessons)} занятий")
 
                         all_groups.append({
                             'code': group_code,
@@ -114,160 +93,124 @@ class SocioParser(BaseParser):
                             'lessons': lessons,
                         })
 
-        total_lessons = sum(len(g['lessons']) for g in all_groups)
-        print(f"\n✅ Итого: {len(all_groups)} групп, {total_lessons} занятий\n")
-
+        total = sum(len(g['lessons']) for g in all_groups)
+        print(f"\n[socio] Итого: {len(all_groups)} групп, {total} занятий")
         return {'groups': all_groups}
 
-    # === Навигация по сайту ===
+    # -- навигация --
 
-    def _find_departments(self, html: str) -> list[tuple[str, str]]:
-        """Найти отделения (Бакалавриат, Магистратура)."""
+    def _find_links(self, html, pattern, strip_brackets=False):
+        """Найти ссылки по regex паттерну href."""
         soup = BeautifulSoup(html, 'html.parser')
         result = []
-        for link in soup.find_all('a', href=re.compile(r'\?f=\d+')):
-            name = link.get_text(strip=True)
-            href = '/index.php' + link['href']
-            if name and name != 'Администрация':
-                result.append((name, href))
-        return result
-
-    def _find_programs(self, html: str) -> list[tuple[str, str]]:
-        """Найти направления/программы (Соц, ППиСН, Мен...)."""
-        soup = BeautifulSoup(html, 'html.parser')
-        result = []
-        for link in soup.find_all('a', href=re.compile(r'\?sp=\d+')):
-            name = link.get_text(strip=True).strip('[]')
-            href = '/index.php' + link['href']
+        for a in soup.find_all('a', href=pattern):
+            name = a.get_text(strip=True)
+            if strip_brackets:
+                name = name.strip('[]')
             if name:
-                result.append((name, href))
+                result.append((name, '/index.php' + a['href']))
         return result
 
-    def _find_years(self, html: str) -> list[tuple[str, str]]:
-        """Найти годы набора из <select name="yr">."""
+    def _find_years(self, html):
         soup = BeautifulSoup(html, 'html.parser')
         select = soup.find('select', {'name': 'yr'})
         if not select:
             return []
+        return [
+            (opt.get_text(strip=True), f'/index.php?yr={opt["value"]}')
+            for opt in select.find_all('option')
+            if opt.get('value') and opt.get_text(strip=True)
+        ]
 
-        result = []
-        for option in select.find_all('option'):
-            value = option.get('value', '')
-            label = option.get_text(strip=True)
-            if value and label:
-                href = f'/index.php?yr={value}'
-                result.append((label, href))
-        return result
+    def _fetch_group_schedule(self, group_url):
+        """Загрузить расписание группы за текущий и следующий месяц."""
+        lessons = []
+        for offset in [0, 1]:
+            url = self._month_url(group_url, offset)
+            page = self.download(url, encoding=self.ENCODING)
+            if page:
+                lessons.extend(self._parse_page(page))
+        return lessons
 
-    def _find_groups(self, html: str) -> list[tuple[str, str, str]]:
-        """Найти все группы на странице."""
-        soup = BeautifulSoup(html, 'html.parser')
-        result = []
-        for link in soup.find_all('a', href=re.compile(r'\?gr=\d+')):
-            code = link.get_text(strip=True)
-            href = '/index.php' + link['href']
-            match = re.search(r'gr=(\d+)', link['href'])
-            site_id = match.group(1) if match else ''
-            if code:
-                result.append((code, href, site_id))
-        return result
-
-    def _get_month_url(self, group_url: str, months_offset: int = 0) -> str:
-        """Добавить параметр месяца к URL группы."""
+    def _month_url(self, group_url, offset=0):
         today = date.today()
-        month = today.month + months_offset
-        year = today.year
-        if month > 12:
-            month -= 12
-            year += 1
-        return f"{group_url}&pMns={month}.{year}"
+        m = today.month + offset
+        y = today.year
+        if m > 12:
+            m -= 12
+            y += 1
+        return f"{group_url}&pMns={m}.{y}"
 
-    # === Парсинг расписания ===
+    # -- парсинг расписания --
 
-    def _parse_schedule_page(self, html: str) -> list[dict]:
-        """Разобрать страницу расписания, вернуть список занятий."""
+    def _parse_page(self, html):
         soup = BeautifulSoup(html, 'html.parser')
         lessons = []
 
-        date_cells = soup.find_all(
-            'td', string=re.compile(r'\d{2}\.\d{2}\.\d{4}')
-        )
-
-        for date_cell in date_cells:
-            date_text = date_cell.get_text(strip=True)
-
+        for date_cell in soup.find_all('td', string=self.DATE_RE):
+            raw_date = date_cell.get_text(strip=True)
             try:
-                date_obj = datetime.strptime(date_text, '%d.%m.%Y')
-                date_iso = date_obj.strftime('%Y-%m-%d')
+                iso_date = datetime.strptime(raw_date, '%d.%m.%Y').strftime('%Y-%m-%d')
             except ValueError:
                 continue
 
-            parent_table = date_cell.find_parent('table')
-            if not parent_table:
+            table = date_cell.find_parent('table')
+            if not table:
                 continue
 
-            pair_cells = parent_table.find_all('td', class_='TmTblC')
+            for i, cell in enumerate(table.find_all('td', class_=self.PAIR_CELL_CLASS)):
+                pair = i + 1
+                t_start, t_end = PAIR_TIMES.get(pair, ('?', '?'))
 
-            for pair_idx, cell in enumerate(pair_cells):
-                pair_num = pair_idx + 1
-                time_start, time_end = PAIR_TIMES.get(pair_num, ('?', '?'))
-
-                less_divs = cell.find_all('div', id='LESS')
-
-                for div in less_divs:
-                    lesson = self._parse_lesson_div(
-                        div, date_iso, pair_num, time_start, time_end
-                    )
-                    if lesson:
-                        lessons.append(lesson)
+                for div in cell.find_all('div', id=self.LESSON_ID):
+                    parsed = self._parse_lesson(div, iso_date, pair, t_start, t_end)
+                    if parsed:
+                        lessons.append(parsed)
 
         return lessons
 
-    def _parse_lesson_div(self, div, date_iso: str, pair_num: int,
-                           time_start: str, time_end: str) -> dict | None:
-        """Разобрать один div с занятием."""
+    def _parse_lesson(self, div, iso_date, pair, t_start, t_end):
         title = div.get('title', '')
-
-        title_match = re.match(r"(.+?) по '(.+)'", title)
-        if not title_match:
+        m = self.TITLE_RE.match(title)
+        if not m:
             return None
 
-        type_full = title_match.group(1)
-        subject = title_match.group(2)
+        type_full = m.group(1)
+        subject = m.group(2)
 
-        # Аббревиатура
+        # аббревиатура — зелёный bold
         abbr = ''
-        abbr_font = div.find('font', color='#004000')
-        if abbr_font:
-            b_tag = abbr_font.find('b')
-            if b_tag:
-                abbr = b_tag.get_text(strip=True)
+        font = div.find('font', color=self.ABBR_COLOR)
+        if font:
+            b = font.find('b')
+            if b:
+                abbr = b.get_text(strip=True)
 
-        # Аудитория
+        # аудитория — первый bold, не являющийся аббревиатурой
         room = ''
-        for b_tag in div.find_all('b'):
-            text = b_tag.get_text(strip=True)
-            if text and text != abbr and not b_tag.find_parent('font', color='#004000'):
-                room = text
+        for b in div.find_all('b'):
+            t = b.get_text(strip=True)
+            if t and t != abbr and not b.find_parent('font', color=self.ABBR_COLOR):
+                room = t
                 break
 
-        # Тип занятия
+        # тип: Лк, Сем, Зч...
         type_short = ''
-        for font_tag in div.find_all('font'):
-            text = font_tag.get_text(strip=True)
-            if text in ('Лк', 'Сем', 'Зч', 'Экз', 'Пр', 'Конс'):
-                type_short = text
+        for f in div.find_all('font'):
+            t = f.get_text(strip=True)
+            if t in self.TYPE_KEYWORDS:
+                type_short = t
                 break
 
         return {
-            'date': date_iso,
-            'pair_number': pair_num,
-            'time_start': time_start,
-            'time_end': time_end,
+            'date': iso_date,
+            'pair_number': pair,
+            'time_start': t_start,
+            'time_end': t_end,
             'subject': subject,
             'subject_abbr': abbr,
             'lesson_type': type_short,
             'lesson_type_full': type_full,
             'room': room,
-            'teacher': '',
+            'teacher': '',  # TODO: на соцфаке не указан, на ФГУ — есть
         }
