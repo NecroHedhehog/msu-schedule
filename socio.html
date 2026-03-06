@@ -1,0 +1,744 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1251">
+<title>.::Автоматизированная система управления учебным процессом Социологического факультета МГУ::.</title>
+<style type="text/css">
+
+A:link     {COLOR: #191970; TEXT-DECORATION: none}
+A:visited  { COLOR: #00008B; TEXT-DECORATION: none }
+A:active   { TEXT-DECORATION: none }
+A:hover    {COLOR: Black;}
+
+BODY{
+/* scrollbar-arrow-color : #97AABA;
+ scrollbar-face-color : #F2F5F7;
+ scrollbar-highlight-color : #B2C3D0;
+ scrollbar-3dlight-color : #ffffff;
+ scrollbar-shadow-color : #B2C3D0;
+ scrollbar-darkshadow-color : #FFFFFF;
+ scrollbar-track-color : #FFFFFF;
+/**/
+ font-family: Verdana, Geneva, Arial, Helvetica, sans-serif; 
+ font-size: 12px;
+ background-color: #ECEEF4;
+ }
+img {
+	border: 0px;
+}
+form {
+	display: inline;
+}
+
+/*---- TOP -------------------------------------------*/
+.MnuHd{
+	font-size: xx-small;
+	color: White;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	padding-left: 7px;
+}
+/*----End TOP -------------------------------------------*/
+/*----Левые менюшки -------------------------------------*/
+.MnuTxt {
+	font-size: xx-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: left;
+/**/	font-weight: bold; /**/
+	padding-left: 5px;
+	padding-right: 5px;	
+	/**/
+}	
+.MnuTxt2 {
+	font-size: xx-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: left;
+/**/	font-weight: bold; /**/
+/*	padding-left: 5px;
+	padding-right: 5px;	
+	/**/
+
+}
+/*----------------------------------------------------------*/
+.BtnGo
+{
+	background-color : transparent;
+	border: 1px solid #C0C0C0;
+        font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-size: xx-small;
+	cursor: pointer;
+	color: #2A1F55;
+	font-weight:bold;
+	width:100%;
+	}
+.InpLg{
+/*	background-color: Transparent;
+	line-height: 1;/**/
+	color:  #555556;
+	line-height: 1;
+	font-style: normal;
+	font-size: xx-small;
+        font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	letter-spacing: normal;/**/
+	width: 100%;
+	border: 1px solid #5F9EA0; /**/
+	font-weight: bold;
+	}
+/*-----------------------------------------------------------*/	
+.TEXT1{
+	font-size: xx-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-weight: normal;
+/*	padding-left: 3px; /**/
+}
+.TEXT2{
+	font-size: x-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-weight: normal;
+	padding-left: 3px; 
+}
+
+.SELTEXT{
+	background-color: #C8B9D9;
+	font-size: x-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	text-align: center;
+	border: 1px solid #6495ED;
+	width: 100%;
+	padding-left: 3px;
+}
+
+.SELTEXT2{
+	font-size: x-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	font-weight: bold;
+	text-align: center;
+	border: 2px solid #6495ED;
+	width: 100%;	
+}
+
+.AREATXT{
+float: none;
+height: 100%;
+overflow: scroll;	
+overflow-x: hidden;
+overflow-y: auto;
+position: relative;
+width: 100%;
+}
+
+.BOX
+{
+	border-bottom: 1px solid Silver;
+}
+.InpLg2{
+	background-color: Transparent;
+	line-height: 1;
+	color:  #555556;;
+	font-style: normal;
+	font-size: xx-small;
+        font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	letter-spacing: normal;
+	width: 100%;
+	font-weight: bold;
+	border: 1px none #5F9EA0;
+	margin-top: 1px;
+	}
+.Txt {
+	font-size: xx-small;
+	color: gray;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: left;
+	border: thin solid Silver;
+}
+.MsgTitle{
+	font-size: x-small;
+	color: black;
+	font-weight: bold;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: center;	
+}	
+
+.LnBrdr{
+	font-size: x-small;
+	color: black;
+	font-weight: bold;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: left;
+}
+.LgMn{
+  font: xx-small;
+  font-weight: bold;
+  font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+  color: #00008B;
+  padding-left: 2px;
+  border-color: #ADBDCB;
+ }
+.HdTextMenu{
+	font-size :x-small;
+	font-style : normal;
+	text-align:center;
+	font-variant : normal;
+	font-weight : bold;
+   font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	}
+.HdText{
+	font-size :xx-small;
+	font-style : normal;
+	text-align:center;
+	font-variant : normal;
+	font-weight : bold;
+        font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	}
+.HdText1{
+	font-size:xx-small;
+	font-style:normal;
+	text-align:center;
+	font-variant : normal;
+        font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	}
+.SlDsc{
+        border-bottom: 1px dotted #B1B1B1;
+	background-color: #CDDEEA;
+	border-top-style: dotted;
+	border-top-width: 1px;
+	border-top-color: #C9C9C9;
+	}
+.MtTxt {
+	font-size: xx-small;
+	color: navy;
+	font-family: Verdana, Geneva, Arial, Helvetica, sans-serif;
+	text-align: left;
+	padding-left: 5px;
+	padding-right: 5px;
+	border: 1px dotted #C9C9C9;
+}
+.slImg{
+	border: 1px solid Silver;
+}
+.slTbl{
+position: absolute;
+background-color: #EFEFEF;
+border: 1px inset Silver;
+cursor: pointer;
+}
+.CsTbl{
+	border: 1px inset Silver;
+}
+.CsTbl2{
+	border: 1px outset Silver;
+}/* MOD TIMETABLE2 */
+.TmTblC{
+	border-bottom-color: #9BACBF;
+	border-bottom-style: dotted;
+	border-bottom-width: thin;	
+	text-align: center;
+}
+
+
+.THint{
+	position: absolute;
+/*   display: none; /**/
+	border: 1px solid ButtonFace;
+	font-family: Verdana;
+	font-size: xx-small;
+	bottom: auto;
+	background: #FFFFF0;
+	color: #00008B;
+	padding-left: 3px;
+	padding-top: 3px;
+	padding-right: 3px;
+	padding-bottom: 3px;
+	width: 150px;
+	z-index: auto;
+	background-color: #FFFFF0;
+	visibility: hidden;
+	}
+
+.AREATXT1{
+
+height: 100%;
+overflow: scroll;	
+overflow-x: hidden;
+overflow-y: auto;
+ position: static; /**/
+width: 100%;
+}
+
+.TmTblp.{
+	border-bottom-color: #A2CCBE;
+	border-bottom-style: dotted;
+	border-bottom-width: 1px;	
+}	
+</style>
+<script language="JavaScript">
+//------------------------------------------------------------------------------
+function InpLg()
+{
+if (FrmINPID.aID.value=='Введіть ІД-код') {FrmINPID.aID.value='';}
+  else if (FrmINPID.aID.value=='') {FrmINPID.aID.value='Введіть ІД-код';}
+}
+//------------------------------------------------------------------------------
+function InpPssw()
+{
+if (FrmINPID.aPS.value=='111') {FrmINPID.aPS.value='';}
+  else if (FrmINPID.aPS.value=='') {FrmINPID.aPS.value='111';}
+}
+//------------------------------------------------------------------------------
+function LhtTD(aTD,aSHOW)
+{
+if (aSHOW) aTD.style.backgroundColor="#92A5B4";else aTD.style.backgroundColor='';
+}
+
+function MnuOpen(AImg,aMnu)
+{
+if (aMnu.style.display==''){aMnu.style.display='none';AImg.src='Img/plus.png';} else {aMnu.style.display='';AImg.src='Img/mines.png';}
+}
+
+function OpenSpoiler(id)
+{
+		var obj = "";
+
+		// Check browser compatibility
+		if(document.getElementById)
+			obj = document.getElementById(id).style;
+		else if(document.all)
+			obj = document.all[id];
+		else if(document.layers)
+			obj = document.layers[id];
+		else
+			return 1;
+
+		// Do the magic :)
+		if(obj.display == "")
+			obj.display = "none";
+		else if(obj.display != "none")
+			obj.display = "none";
+		else
+			obj.display = "block";
+}
+/* MOD TIMETABLE2 */
+var Show = 1;
+var cEvent;
+var o3_y = 0;
+var o3_x = 0;
+var o3_frame = self;
+// Decide browser version
+var ns4 = (document.layers)? true:false;
+var ns6 = (document.getElementById)? true:false;
+var ie4 = (document.all)? true:false;
+var ie5 = false;
+// Microsoft Stupidity Check(tm).
+if (typeof ol_frame == 'undefined') { var ol_frame = self; }
+
+if (ie4) {
+	if ((navigator.userAgent.indexOf('MSIE 5') > 0) || (navigator.userAgent.indexOf('MSIE 6') > 0)) {
+		ie5 = true;
+	}
+	if (ns6) {
+		ns6 = false;
+	}
+}
+
+// Capture events, alt. diffuses the overlib function.
+if ( (ns4) || (ie4) || (ns6)) {
+	o3_frame = ol_frame;
+	document.onmousemove = mouseMove
+	if (ns4) document.captureEvents(Event.MOUSEMOVE)
+}
+function mouseMove(e) {
+	if ( (ns4) || (ns6) ) {o3_x=e.pageX; o3_y=e.pageY;}
+	if (ie4) {o3_x=event.x; o3_y=event.y;}
+	if (ie5) {o3_x=event.x+o3_frame.document.body.scrollLeft; o3_y=event.y+o3_frame.document.body.scrollTop;}
+
+}
+
+function DivHint(mDIV)
+{
+varMnHint = document.getElementById("MnHint");
+if (varMnHint.style.visibility=='hidden'){varMnHint.style.visibility='visible';}
+ else varMnHint.style.visibility='hidden';
+
+
+varMnHint.innerText=mDIV.innerText ;
+varMnHint.innerHTML=mDIV.innerHTML;
+
+      oCanvas = document.getElementsByTagName((document.compatMode &&
+              document.compatMode == "CSS1Compat") ? "HTML" : "BODY")[0];
+
+      x = window.event ? event.clientX + oCanvas.scrollLeft : o3_x;
+      y = window.event ? event.clientY + oCanvas.scrollTop : o3_y;
+
+
+varMnHint.style.top=y+10+'px';
+varMnHint.style.left=x+'px';
+Show=0;
+
+}
+function DivHide()
+{
+varMnHint = document.getElementById("MnHint");
+varMnHint.style.visibility='hidden';
+Show=1;
+}
+
+</script>
+</head>
+<body leftmargin="0" topmargin="0" marginwidth="0" marginheight="0">
+<table width="98%" height="100%" border="0" cellpadding="0" cellspacing="2" align=center bgcolor="#A2A6DC">
+<tr><td valign="top">
+
+<table width="100%" height="100%" border=0 cellpadding="0" cellspacing="0" bgcolor="#A2A6DC">
+<tr><td colspan="5" align="left" height="107" style="background-image: url(Img/Hd_011.gif); background-position: left; background-repeat: repeat-x">
+<img src="Img/Hd_01.gif" width="765" height="107" alt=""></td></tr>
+<tr><td colspan="3"><img src="Img/Hd_02.gif" width="197" height="28" alt=""></td>
+    <td background="Img/Hd_Nm.gif" width="95%" height="28" class="MnuHd">
+    <!--  !-->
+    </td>
+	<td><img src="Img/Hd_04.gif" width="62" height="28"></td>
+</tr>
+<tr>
+	<td width="157" height="260" valign="top" background="Img/Tm_Txt_l.gif">
+    <!-- START LEFT MENU'S -->
+ <table width="157" border="0" cellpadding="0" cellspacing="0">
+    <tr><td colspan="2" background="Img/Mnu_01.gif" width="24" height="24" align="right">
+        <img src='Imgmenu/locked.png' width=23 height=24 border=0></td>
+        <td colspan="2" background="Img/Mnu_Nm.gif" width="134" height="24" class="MnuHd" align=left>Авторизация</td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_03.gif" width="157" height="7" alt=""></td></tr>
+    <tr>
+        <td background="Img/Mnu_lt.gif" width="3"></td>
+        <td colspan="2" background="Imgmenu/Mnu_red.gif" width="151" class="MnuTxt">
+        <BR>
+ <!-- START MENU -->
+ 	<!---->
+	<form name="FrmLogin" action="index.php" method="post">
+	<table border=0 cellpadding="0" cellspacing="0" width=100% class="TEXT1">
+	<tr><td colspan="2">
+    <table width=100% style="border:1px solid #84AEB4;" cellspacing="0" cellpadding="0" border="0">
+    <tr><td><IMG src="Img/sl_login.gif"></td><td width=100%><input name="aID" accesskey="l" value="" title="Идентификационный код (Alt-L)" maxlength=15 class="InpLg2" size=12></td></tr>
+    </table>
+    </td></tr>
+	<tr><td colspan=2 height="1"></td></tr>
+	<tr><td colspan="2">
+    <table width=100% style="border:1px solid #84AEB4;" cellspacing="0" cellpadding="0" border="0">
+    <tr><td><IMG src="Img/sl_password.gif"></td><td width=100%><input name="aPS" value="" accesskey="p" title="Пароль (Alt-P)" maxlength=10 class="InpLg2"  size=10 type="password"></td></tr>
+    </table>
+    </td></tr>
+	<tr><td colspan=2 height="1"></td></tr>
+	<tr><td width="100%" title="Активация учётной записи из базы данных отдела кадров">
+	<a href=index.php?aID=1><font color=red><b>Активация</b></font></a><br><font color="#808080">Установить пароль</font>
+ 	</td>
+    <td><input src="Img/action.gif"  type="image" name="NLogin"
+         class="BtnGo"  align="center" title="Войти в систему" style="height: 24px; width: 24px"></td></tr>
+	</table>
+	</form>
+	<!---->
+     <!-- END MENU -->
+        <BR>
+        </td>
+        <td background="Img/Mnu_rt.gif" width="3"></td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_07.gif" width="157" height="3" alt=""></td></tr>
+    <tr>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="20" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="131" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+    </tr>
+ </table>
+  <table width="157" border="0" cellpadding="0" cellspacing="0">
+    <tr><td colspan="2" background="Img/Mnu_01.gif" width="24" height="24" align="right">
+        <img src='Imgmenu/snau.png' width=23 height=24 border=0></td>
+        <td colspan="2" background="Img/Mnu_Nm.gif" width="134" height="24" class="MnuHd" align=left>Факультет</td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_03.gif" width="157" height="7" alt=""></td></tr>
+    <tr>
+        <td background="Img/Mnu_lt.gif" width="3"></td>
+        <td colspan="2" background="Imgmenu/Mnu_txt.gif" width="151" class="MnuTxt">
+        <BR>
+ <!-- START MENU -->
+ 
+<table width=100% border=0 cellpadding=0 cellspacing=0 class=MnuTxt2 >
+
+       <tr><td width=2%></td><td width=100%></td></tr>
+<tr><td valign=top  style="cursor: pointer;color:#494949;" onclick=MnuOpen(MnuImg354,Mnu354)>&nbsp;<img src='Img/mines.png' name=MnuImg354>&nbsp;</td><td  style="cursor: pointer;color:#494949;" onclick=MnuOpen(MnuImg354,Mnu354) title="">Расписание</td></tr>
+<tr><td colspan=2 style='padding-left:10px;'>
+<table width=100% border=0 cellpadding=0 cellspacing=0 class=MnuTxt2 style="border:0px dotted #D3B8CE;" id=Mnu354>
+
+       <tr><td width=2%></td><td width=100%></td></tr>
+<tr bgcolor=#F3F3F5><td valign=top >&nbsp;<img src='Img/arrow.gif'>&nbsp;</td><td  title=""><a style="font-weight:normal;color:#BB0000;font-weight:bold;" href='index.php?mnu=143'>Академ. группы</a></td></tr>
+<tr><td valign=top >&nbsp;<img src='Img/arrow.gif'>&nbsp;</td><td  title=""><a style="font-weight:normal;color:#4F4F4F;" href='index.php?mnu=56'>Преподaвателя</a></td></tr>
+<tr><td valign=top >&nbsp;<img src='Img/arrow.gif'>&nbsp;</td><td  title=""><a style="font-weight:normal;color:#4F4F4F;" href='index.php?mnu=75'>Студента</a></td></tr>
+</table></td></tr>
+</table> <!-- END MENU -->
+        <BR>
+        </td>
+        <td background="Img/Mnu_rt.gif" width="3"></td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_07.gif" width="157" height="3" alt=""></td></tr>
+    <tr>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="20" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="131" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+    </tr>
+ </table>
+  <table width="157" border="0" cellpadding="0" cellspacing="0">
+    <tr><td colspan="2" background="Img/Mnu_01.gif" width="24" height="24" align="right">
+        <img src='Imgmenu/web.png' width=23 height=24 border=0></td>
+        <td colspan="2" background="Img/Mnu_Nm.gif" width="134" height="24" class="MnuHd" align=left>Счётчик</td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_03.gif" width="157" height="7" alt=""></td></tr>
+    <tr>
+        <td background="Img/Mnu_lt.gif" width="3"></td>
+        <td colspan="2" background="Imgmenu/Mnu_blue.gif" width="151" class="MnuTxt">
+        <BR>
+ <!-- START MENU -->
+ <center>
+<!--Rating@Mail.ru COUNTEr--><script language="JavaScript" type="text/javascript"><!--
+d=document;var a='';a+=';r='+escape(d.referrer)
+js=10//--></script><script language="JavaScript1.1" type="text/javascript"><!--
+a+=';j='+navigator.javaEnabled()
+js=11//--></script><script language="JavaScript1.2" type="text/javascript"><!--
+s=screen;a+=';s='+s.width+'*'+s.height
+a+=';d='+(s.colorDepth?s.colorDepth:s.pixelDepth)
+js=12//--></script><script language="JavaScript1.3" type="text/javascript"><!--
+js=13//--></script><script language="JavaScript" type="text/javascript"><!--
+d.write('<a href="http://top.mail.ru/jump?from=1278371"'+
+' target=_top><img src="http://d1.c8.b3.a1.top.list.ru/counter'+
+'?id=1278371;t=220;js='+js+a+';rand='+Math.random()+
+'" alt="Рейтинг@Mail.ru"'+' border=0 height=31 width=88/><\/a>')
+if(11<js)d.write('<'+'!-- ')//--></script><noscript><a
+target=_top href="http://top.mail.ru/jump?from=1278371"><img
+src="http://d1.c8.b3.a1.top.list.ru/counter?js=na;id=1278371;t=220"
+border=0 height=31 width=88
+alt="Рейтинг@Mail.ru"/></a></noscript><script language="JavaScript" type="text/javascript"><!--
+if(11<js)d.write('--'+'>')//--></script><!--/COUNTER-->
+</center>
+
+<table width=100% border=0 cellpadding=0 cellspacing=0 class=MnuTxt2 >
+
+       <tr><td width=2%></td><td width=100%></td></tr>
+</table> <!-- END MENU -->
+        <BR>
+        </td>
+        <td background="Img/Mnu_rt.gif" width="3"></td>
+    </tr>
+    <tr><td colspan="4"><img src="Img/Mnu_07.gif" width="157" height="3" alt=""></td></tr>
+    <tr>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="20" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="131" height="1" alt=""></td>
+        <td><img src="Img/spacer.gif" width="3" height="1" alt=""></td>
+    </tr>
+ </table>
+     <!--END LEFT MENU'S-->
+    </td>
+    <td>
+        <table width="4" height="100%" border="0" cellpadding="0" cellspacing="0">
+        <tr><td width="4" height="100%"><img src="Img/spacer.gif" width="4" height="100%" alt=""></td></tr>
+        </table>
+    </td>
+    <td width=100% height="100%" colspan="3" valign="top" bgcolor="#EFF3F5">
+    <!--BASE FRAME-->
+
+             <table width="100%" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td colspan="2"><img src="Img/Tm_01.gif" width="36" height="18" alt=""></td>
+                    <td background="Img/Tm_Nm.gif" width="99%" height="18" class="MnuHd">
+                           <a href='?mnu=143'><font color=white>Выбор группы</font></a>                    </td>
+                    <td colspan="2" background="Img/Tm_03.gif" width="50" height="18" align=right>
+<a href="index.php?aID=3"><img width=25 height=14 src="Img/windo.png"></a><a href=# onClick="window.print();"><img width=25 height=14 src="Img/windp.png"></a>                    </td>
+                </tr>
+                <tr>
+                    <td><img src="Img/Tm_04.gif" width="5" height="7" alt=""></td>
+                    <td colspan="3" background="Img/Tm_Rlft.gif" width="99%" height="7"></td>
+                    <td><img src="Img/Tm_08.gif" width="4" height="7" alt=""></td>
+                </tr>
+                <tr>
+                    <td background="Img/Tm_Lt.gif" width="5"></td>
+                    <td colspan="3" bgcolor="#EFF3F5" width="99%" valign="top" height=100% class=TEXT2>
+
+ <!--START CENTER-->
+ <table style="margin-top: 4" cellpadding="1" cellspacing="1" align="center" width="100%" border="0" bgcolor=#ADBDCB class=TEXT1>
+<tr bgcolor="#F3F3F5"><td title='Бакалавриат'>&nbsp;Подр.ЭФ.:[<b><font color=#800080>БАК</b></font>]</td>
+			<td title=''>&nbsp;Направл.:[<b><font color=#800080>Соц</b></font>]</td>
+			<td title='Год набора:'>&nbsp;Год:[<b><font color=#800080>2022</b></font>]</td>
+			<td title='с403'>&nbsp;Группа:[<b><font color=#800080>с403</b></font>]</td>
+			<td>Курс:&nbsp;[<b><font color=#800080>4</b></font>]</td>
+			<td>Сем.:&nbsp;[<b><font color=#800080>7</b></font>]</td><td bgcolor=#BDCED5 align=center><a onclick="javascript:if(TblSELVZ.style.display=='none'){TblSELVZ.style.display='';}else {TblSELVZ.style.display='none';}"
+					href=#><b>Выбор</b></a></td></tr></table>
+
+<table id=TblSELVZ style="margin-top: 4" height=250 cellpadding="1" cellspacing="1" align="center" width="100%" border="0" bgcolor=#ADBDCB class=TEXT1>
+<tr align=center class=TEXT1 height=1% bgcolor=#BDCED5>
+<td width=55% colspan=2><b>Подразделения факультета</b></td>
+<td width=15%><b>Группы</b></td>
+<td width=30%><b>Семестр/Курс</b></td>
+</tr>
+<tr><td bgcolor=#F3F3F5 colspan=2 width=55% height=50><div class=AREATXT>
+&nbsp;&nbsp;<a href=?f=1><b>Бакалавриат</b></a><br>&nbsp;&nbsp;<a href=?f=2>Магистратура</a><br>&nbsp;&nbsp;<a href=?f=3>Администрация</a><br></div></td><td bgcolor=#F3F3F5 rowspan=5 align=center width=15% height=253 valign=top><div class=AREATXT>&nbsp;&nbsp;<a href="?gr=277" title='с401'>с401</a><br>&nbsp;&nbsp;<a href="?gr=278" title='с402'>с402</a><br>&nbsp;&nbsp;<a href="?gr=279" title='с403'><b>с403</b></a><br>&nbsp;&nbsp;<a href="?gr=280" title='с404'>с404</a><br>&nbsp;&nbsp;<a href="?gr=281" title='с405'>с405</a><br>&nbsp;&nbsp;<a href="?gr=282" title='с406'>с406</a><br></div></td><td bgcolor=#F3F3F5 width=180 height=230 rowspan=3><div class=AREATXT>
+<table width=100% height=1% cellpadding=1 cellspacing=1 align=center border=0 bgcolor=#ADBDCB class=TEXT1>
+<tr height=1% align=center bgcolor=#BDCDD9>
+	<td><b>Сем.</b></td>
+	<td><b>Курс</b></td>
+	<td width=50%><b>Год</b></td></tr>
+<tr bgcolor=#F3F3F5 align=center>
+  	<td>1</td><td>1</td><td>2022</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>2</td><td>1</td><td>2022</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>3</td><td>2</td><td>2023</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>4</td><td>2</td><td>2023</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>5</td><td>3</td><td>2024</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>6</td><td>3</td><td>2024</td></tr><tr bgcolor=#D5D8EE align=center>
+  	<td>7</td><td>4</td><td>2025</td></tr><tr bgcolor=#F3F3F5 align=center>
+  	<td>8</td><td>4</td><td>2025</td></tr><tr><td colspan=3 height=1%></td></tr></table></div></td></tr>
+<tr class=TEXT1 height=1%><td align=center colspan=2 bgcolor=#BDCED5><b>Направления/программы</b></td></tr>
+<tr><td bgcolor=#F3F3F5 colspan=2 width=55% height=150 valign=top><div class=AREATXT>&nbsp;&nbsp;<a href=?sp=1 title=""><b></b> <font color=#548D4B>[Соц]</font></a><br>&nbsp;&nbsp;<a href=?sp=5 title=""> <font color=#548D4B>[ППиСН]</font></a><br>&nbsp;&nbsp;<a href=?sp=2 title=""> <font color=#548D4B>[Мен]</font></a><br>&nbsp;&nbsp;<a href=?sp=3 title=""> <font color=#548D4B>[ВОсоц]</font></a><br></div></td></tr><tr class=TEXT1 bgcolor=#BDCED5 height=1%><td width=30%><b>&nbsp;Год набора:</b></td><td>
+      <select class=InpLg size=1 name='yr' OnChange="location='index.php?yr='+this.value ">
+<option value=42 >2025 [дневная]</option>
+<option value=39 >2024 [дневная]</option>
+<option value=36 >2023 [дневная]</option>
+<option value=33 SELECTED>2022 [дневная]</option>
+</select></td><td>
+<table height=16 cellpadding=1 cellspacing=1 width=100% border=0 bgcolor=#BDCDD9 class=TEXT1 align=center>
+<form name='FrmPrrSrch' action='index.php' method='post'>
+<tr class=TEXT1 bgcolor=#BDCED5 height=1%>
+<td width=16 height=16>
+<input src='Img/find.png'  type='image' name='VZTSHB' value='SRCH' class='BtnGo'
+        align='center' title='Поиск'>
+</td>
+<td width=50%>
+      <select class=InpLg size=1 name='VZEDC_S_m'>
+<option value=0 ></option>
+<option value=1 >январь</option>
+<option value=2 >февраль</option>
+<option value=3 SELECTED>март</option>
+<option value=4 >апрель</option>
+<option value=5 >май</option>
+<option value=6 >июнь</option>
+<option value=7 >июль</option>
+<option value=8 >август</option>
+<option value=9 >сентябрь</option>
+<option value=10 >октябрь</option>
+<option value=11 >ноябрь</option>
+<option value=12 >декабрь</option>
+</select></td>
+<td><select class=InpLg size=1 name='VZEDC_S_y'>
+<option value=2025 >2025</option>
+<option value=2026 SELECTED>2026</option>
+<option value=2027 >2027</option>
+</select></td></tr></form></table>
+</td></tr>
+</table> <!--END CENTER-->
+                    </td><td background="Img/Tm_Rt.gif" width="4"></td>
+                </tr>
+                <tr>
+                    <td><img src="Img/Tm_12_lft.gif" width="5" height="5" alt=""></td>
+                    <td colspan="3" background="Img/Tm_12.gif" width="100%" height="5"></td>
+                    <td><img src="Img/Tm_12_rht.gif" width="4" height="5" alt=""></td>
+                </tr>
+                <tr>
+                    <td><img src="Img/spacer.gif" width="5" height="1" alt=""></td>
+                    <td><img src="Img/spacer.gif" width="31" height="1" alt=""></td>
+                    <td background="Img/spacer.gif" width="100%" height="1"></td>
+                    <td><img src="Img/spacer.gif" width="46" height="1" alt=""></td>
+                    <td><img src="Img/spacer.gif" width="4" height="1" alt=""></td>
+                </tr>
+            </table>
+
+ <div id="MnHint" class=THint style="visibility:'hidden'" onclick="DivHide()">
+<img src="../Img/NA.jpg">
+</div>
+        <table width="100%" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                    <td colspan="2"><img src="Img/Tm_01.gif" width="36" height="18" alt=""></td>
+                    <td background="Img/Tm_Nm.gif" width="99%" height="18" class="MnuHd">
+                           <a href='?mnu=143'><font color=white>Расписание группы:&nbsp;[с403]</font></a>                    </td>
+                    <td colspan="2" background="Img/Tm_03.gif" width="50" height="18" align=right>
+                    </td>
+                </tr>
+                <tr>
+                    <td><img src="Img/Tm_04.gif" width="5" height="7" alt=""></td>
+                    <td colspan="3" background="Img/Tm_Rlft.gif" width="99%" height="7"></td>
+                    <td><img src="Img/Tm_08.gif" width="4" height="7" alt=""></td>
+                </tr>
+                <tr>
+                    <td background="Img/Tm_Lt.gif" width="5"></td>
+                    <td colspan="3" bgcolor="#EFF3F5" width="99%" valign="top" height=100% class=TEXT2>
+
+ <!--START CENTER-->
+  <table width=100% cellpadding=0 cellspacing=0 align=center border=1 bordercolor=#ABC1C9 class=TEXT1 style="margin-top: 4px;" ><tr bgcolor=#ABC1C9>
+ <td align=center title='10.2025'><a href='?pMns=10.2025'>октябрь</a></td><td align=center title='11.2025'><a href='?pMns=11.2025'>ноябрь</a></td><td align=center title='12.2025'><a href='?pMns=12.2025'>декабрь</a></td><td align=center title='01.2026'><a href='?pMns=1.2026'>январь</a></td><td align=center title='02.2026'><a href='?pMns=2.2026'>февраль</a></td><td align=center title='03.2026'><a href='?pMns=3.2026'><font color=red><b>март</b></font></a></td><td align=center title='04.2026'><a href='?pMns=4.2026'>апрель</a></td><td align=center title='05.2026'><a href='?pMns=5.2026'>май</a></td><td align=center title='06.2026'><a href='?pMns=6.2026'>июнь</a></td><td align=center title='07.2026'><a href='?pMns=7.2026'>июль</a></td><td align=center title='08.2026'><a href='?pMns=8.2026'>август</a></td><td align=center title='09.2026'><a href='?pMns=9.2026'>сентябрь</a></td> </tr><tr bgcolor=#CBDCCD><td colspan=8>&nbsp;Период индикации изменений расписания от текущей даты за&nbsp;</td>
+ <td><select name='MnuAcs' size=1 class=InpLg OnChange="location='index.php?DpthDy='+this.value"><option value=1>1</option>
+<option value=2>2</option>
+<option value=3>3</option>
+<option value=4>4</option>
+<option value=5>5</option>
+<option value=6>6</option>
+<option value=7 SELECTED >7</option>
+<option value=14>14</option>
+<option value=21>21</option>
+<option value=28>28</option>
+</select></td><td colspan=4>&nbsp;&nbsp;дней</td></tr></table><table width=100% style="margin-top: 4" cellpadding="0" cellspacing="0" align="center" border="1" bordercolor=#ABC1C9 class=TEXT1><tr><td bgcolor=#99ACBB width=1%>Пн</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>02.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Лекция по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Семинар по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>09.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>16.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Лекция по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Семинар по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>23.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Искусственный интеллект в социальном управлении'"><font color=#004000><b>ИИСУ</b></font><br><b>101</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социология креатива (теория и технология индивидуального и общественного развития)'"><font color=#004000><b>СКТТИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социальные технологии модернизации общества'"><font color=#004000><b>СТМО</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Искусственный интеллект в социальном управлении'"><font color=#004000><b>ИИСУ</b></font><br><b>101</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социология креатива (теория и технология индивидуального и общественного развития)'"><font color=#004000><b>СКТТИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Лекция по 'Управление в культурно-досуговой сфере'"><font color=#004000><b>УвКДС</b></font><br><b>410</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Семинар по 'Социальные технологии модернизации общества'"><font color=#004000><b>СТМО</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Управление в культурно-досуговой сфере'"><font color=#004000><b>УвКДС</b></font><br><b>410</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>30.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Качественный анализ данных и mix-method в программе MaxQDA'"><font color=#004000><b>КАД</b></font><br><b>417</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Процедура группового и индивидуального принятия решений: теория и практика'"><font color=#004000><b>ПГиИПР</b></font><br><b>401</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Лекция по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Семинар по 'Социологическое измерение здоровья населения: теории и практики'"><font color=#004000><b>СИЗНТ</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Современные механизмы управления социальными изменениями'"><font color=#004000><b>СМУСИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Вт</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>03.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>10.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>17.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>24.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>31.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Ср</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>04.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Анализ социологических данных с использованием языков программирования R и Python'"><font color=#004000><b>АСДИЯП</b></font><br><b>418</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Анализ социологических данных с использованием языков программирования R и Python'"><font color=#004000><b>АСДИЯП</b></font><br><b>418</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS"style='background-color:#CBDCCD;' title="Лекция по 'Социологический анализ образа семьи' Добавлено 04.03.2026,14:20"><font color=#004000><b>САОС</b></font><br><b>303</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS"style='background-color:#CBDCCD;' title="Семинар по 'Социологический анализ образа семьи' Добавлено 04.03.2026,14:21"><font color=#004000><b>САОС</b></font><br><b>303</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>11.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Мода как социальный феномен'"><font color=#004000><b>МкСФ</b></font><br><b>101</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Старение населения: социологические аспекты'"><font color=#004000><b>СНСА</b></font><br><b>320</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Мода как социальный феномен'"><font color=#004000><b>МкСФ</b></font><br><b>101</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Старение населения: социологические аспекты'"><font color=#004000><b>СНСА</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>18.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Анализ социологических данных с использованием языков программирования R и Python'"><font color=#004000><b>АСДИЯП</b></font><br><b>418</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Анализ социологических данных с использованием языков программирования R и Python'"><font color=#004000><b>АСДИЯП</b></font><br><b>418</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS"style='background-color:#CBDCCD;' title="Лекция по 'Социологический анализ образа семьи' Добавлено 04.03.2026,14:20"><font color=#004000><b>САОС</b></font><br><b>303</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS"style='background-color:#CBDCCD;' title="Семинар по 'Социологический анализ образа семьи' Добавлено 04.03.2026,14:21"><font color=#004000><b>САОС</b></font><br><b>303</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>25.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Мода как социальный феномен'"><font color=#004000><b>МкСФ</b></font><br><b>101</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Старение населения: социологические аспекты'"><font color=#004000><b>СНСА</b></font><br><b>320</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Мода как социальный феномен'"><font color=#004000><b>МкСФ</b></font><br><b>101</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Старение населения: социологические аспекты'"><font color=#004000><b>СНСА</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Чт</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>05.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Метод экспертного опроса в социологических исследованиях '"><font color=#004000><b>МЭОвСИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Парадигмы нового мирового порядка: социологический анализ'"><font color=#004000><b>ПНМПСА</b></font><br><b>410</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Урбанизация в России: социологический анализ'"><font color=#004000><b>УРСА</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Семья в русской социологии'"><font color=#004000><b>СРС</b></font><br><b>304</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Метод экспертного опроса в социологических исследованиях '"><font color=#004000><b>МЭОвСИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Парадигмы нового мирового порядка: социологический анализ'"><font color=#004000><b>ПНМПСА</b></font><br><b>410</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Урбанизация в России: социологический анализ'"><font color=#004000><b>УРСА</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Семья в русской социологии'"><font color=#004000><b>СРС</b></font><br><b>304</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>511</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>12.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Индивид, индивидуализация, идентичность в обществах модерна '"><font color=#004000><b>ИИИвОМ</b></font><br><b>414</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Общественное мнение и СМИ'"><font color=#004000><b>ОМСМИ</b></font><br><b>416</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Индивид, индивидуализация, идентичность в обществах модерна '"><font color=#004000><b>ИИИвОМ</b></font><br><b>414</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Общественное мнение и СМИ'"><font color=#004000><b>ОМСМИ</b></font><br><b>416</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>416</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>416</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>19.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Метод экспертного опроса в социологических исследованиях '"><font color=#004000><b>МЭОвСИ</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Парадигмы нового мирового порядка: социологический анализ'"><font color=#004000><b>ПНМПСА</b></font><br><b>410</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Урбанизация в России: социологический анализ'"><font color=#004000><b>УРСА</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Семья в русской социологии'"><font color=#004000><b>СРС</b></font><br><b>304</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Метод экспертного опроса в социологических исследованиях '"><font color=#004000><b>МЭОвСИ</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Парадигмы нового мирового порядка: социологический анализ'"><font color=#004000><b>ПНМПСА</b></font><br><b>410</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Урбанизация в России: социологический анализ'"><font color=#004000><b>УРСА</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Семья в русской социологии'"><font color=#004000><b>СРС</b></font><br><b>304</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>511</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>26.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Индивид, индивидуализация, идентичность в обществах модерна '"><font color=#004000><b>ИИИвОМ</b></font><br><b>414</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Общественное мнение и СМИ'"><font color=#004000><b>ОМСМИ</b></font><br><b>416</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Индивид, индивидуализация, идентичность в обществах модерна '"><font color=#004000><b>ИИИвОМ</b></font><br><b>414</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Общественное мнение и СМИ'"><font color=#004000><b>ОМСМИ</b></font><br><b>416</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>416</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>322</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Теория и практика лоббизма в современном мире(ая)'"><font color=#004000><b>ТПЛСМая</b></font><br><b>416</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социология морали(ая)'"><font color=#004000><b>СоцМ(ая)</b></font><br><b>415</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Основы менеджмента(ая)'"><font color=#004000><b>ОМЕНая</b></font><br><b>522</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социолигвистические аспекты глобальной политики(ая)'"><font color=#004000><b>СЛАГПая</b></font><br><b>322</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Пт</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>06.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Социология мировых цивилизаций'"><font color=#004000><b>СМЦ</b></font><br><b>405</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Социология мировых цивилизаций'"><font color=#004000><b>СМЦ</b></font><br><b>405</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Современная международная миграция: социолого-демографический подход'"><font color=#004000><b>СММСДП</b></font><br><b>317</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Современная международная миграция: социолого-демографический подход'"><font color=#004000><b>СММСДП</b></font><br><b>317</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>13.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Факторы и последствия внутрироссийской миграции'"><font color=#004000><b>ФПВРМ</b></font><br><b>301</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Управление деловой карьерой'"><font color=#004000><b>УДК</b></font><br><b>320</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Оригинальные направления исследования современного общества'"><font color=#004000><b>ОНИСО</b></font><br><b>511</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социология поколений'"><font color=#004000><b>СоцПок</b></font><br><b>304</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Факторы и последствия внутрироссийской миграции'"><font color=#004000><b>ФПВРМ</b></font><br><b>301</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Управление деловой карьерой'"><font color=#004000><b>УДК</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Оригинальные направления исследования современного общества'"><font color=#004000><b>ОНИСО</b></font><br><b>511</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социология поколений'"><font color=#004000><b>СоцПок</b></font><br><b>304</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>20.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Социология мировых цивилизаций'"><font color=#004000><b>СМЦ</b></font><br><b>405</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Социология мировых цивилизаций'"><font color=#004000><b>СМЦ</b></font><br><b>405</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Современная международная миграция: социолого-демографический подход'"><font color=#004000><b>СММСДП</b></font><br><b>317</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Современная международная миграция: социолого-демографический подход'"><font color=#004000><b>СММСДП</b></font><br><b>317</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>27.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Лекция по 'Факторы и последствия внутрироссийской миграции'"><font color=#004000><b>ФПВРМ</b></font><br><b>301</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Управление деловой карьерой'"><font color=#004000><b>УДК</b></font><br><b>320</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Оригинальные направления исследования современного общества'"><font color=#004000><b>ОНИСО</b></font><br><b>511</b>[<font color=#8D2183>Лк</font>]<br></div><div id="LESS" title="Лекция по 'Социология поколений'"><font color=#004000><b>СоцПок</b></font><br><b>304</b>[<font color=#8D2183>Лк</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100%><div class=AREATXT1 onclick='DivHint(this)'><div id="LESS" title="Семинар по 'Факторы и последствия внутрироссийской миграции'"><font color=#004000><b>ФПВРМ</b></font><br><b>301</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Управление деловой карьерой'"><font color=#004000><b>УДК</b></font><br><b>320</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Оригинальные направления исследования современного общества'"><font color=#004000><b>ОНИСО</b></font><br><b>511</b>[<font color=#766F0C>Сем</font>]<br></div><div id="LESS" title="Семинар по 'Социология поколений'"><font color=#004000><b>СоцПок</b></font><br><b>304</b>[<font color=#766F0C>Сем</font>]<br></div></div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Сб</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>07.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>14.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>21.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>28.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr><tr><td bgcolor=#99ACBB width=1%>Вс</td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>01.03.2026</td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=09.00-10.30>1</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=10.40-12.10>2</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=12.20-13.50>3</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=14.00-15.30>4</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=15.40-17.10>5</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td bgcolor=#ABC1C9  width=1% title=17.20-18.50>6</td><td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>08.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>15.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>22.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>29.03.2026</td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% ><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td> <td width=15% height=50><table width=100% height=100% cellpadding=0 cellspacing=0 align=center border=0 class=TEXT1 bordercolor=#FF0000><tr><td colspan=2 bgcolor=#ABC1C9 align=center>&nbsp;</td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr> <tr> <td class=TmTblC height=50 width=100% bgcolor=#ABC1C9><div class=AREATXT>&nbsp;<br>&nbsp;<br>&nbsp;</div></td></tr></table></td></tr></table> <!--END CENTER-->
+                    </td><td background="Img/Tm_Rt.gif" width="4"></td>
+                </tr>
+                <tr>
+                    <td><img src="Img/Tm_12_lft.gif" width="5" height="5" alt=""></td>
+                    <td colspan="3" background="Img/Tm_12.gif" width="100%" height="5"></td>
+                    <td><img src="Img/Tm_12_rht.gif" width="4" height="5" alt=""></td>
+                </tr>
+                <tr>
+                    <td><img src="Img/spacer.gif" width="5" height="1" alt=""></td>
+                    <td><img src="Img/spacer.gif" width="31" height="1" alt=""></td>
+                    <td background="Img/spacer.gif" width="100%" height="1"></td>
+                    <td><img src="Img/spacer.gif" width="46" height="1" alt=""></td>
+                    <td><img src="Img/spacer.gif" width="4" height="1" alt=""></td>
+                </tr>
+            </table>
+
+   <!-- FOOTER -->
+    </td>
+</tr>
+<tr>
+	<td><img src="Img/spacer.gif" width="157" height="1" alt=""></td>
+	<td><img src="Img/spacer.gif" width="4" height="1" alt=""></td>
+	<td><img src="Img/spacer.gif" width="36" height="1" alt=""></td>
+	<td width="90%"><img src="Img/spacer.gif" height="1" alt=""></td>
+	<td><img src="Img/spacer.gif" width="62" height="1" alt=""></td>
+</tr>
+</table>
+
+</td></tr>
+
+<tr><td bgcolor="#A2A6DC" height="10" class="MnuHd">
+
+<table border=0 width=100% class="TEXT1" style="font-size: 9px;">
+ <tr><td style="color:white;">
+WEB-мастер: <a style="color:white;" href="mailto:nsi@ukr.net">Назаров С.И.</a><br>
+Администратор АСУ УП СФ: <a style="color:white;" href="mailto:trubnikov@econ.msu.ru">Трубников Ю.В.</a>
+</td>
+     <td align=right style="color:white;">
+     &copy;2007 Сумской Национальный Аграрный Университет.<br>
+&copy;2007 Социологический факультет МГУ им. М.В.Ломоносова.<br>
+
+</td>
+</tr>
+</table>
+</td></tr></table>
+
+<script language="JavaScript" type="text/javascript">
+<!--
+iFoto=document.getElementById("IDFoto");
+if (iFoto){iFoto.src="index.php?aID=IDFoto";}
+//-->
+</script>
+</body>
+</html>
