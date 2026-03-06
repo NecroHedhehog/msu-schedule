@@ -386,7 +386,7 @@ async def on_course_select(callback: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await callback.message.edit_text(
-        f"📚 {department} — {program} — {course_name}\nВыбери группу:",
+     f"📚 {department} — {program} — {target_course} курс\nВыбери группу:",
         reply_markup=keyboard,
     )
     await callback.answer()
