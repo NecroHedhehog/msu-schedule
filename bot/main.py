@@ -290,6 +290,20 @@ async def on_back_to_dept(callback: CallbackQuery):
     await callback.answer()
 
 
+def detect_course(code: str) -> int:
+    """Определить номер курса из кода группы: с403 → 4, пп201 → 2, мг52МКПП → 1."""
+    import re
+    # Убираем буквенный префикс, берём первую цифру
+    m = re.search(r'\d', code)
+    if not m:
+        return 0
+    first_digit = int(m.group())
+    # Для магистратуры: мг5x = 1 курс, мг6x = 2 курс
+    if code.lower().startswith('мг') or code.lower().startswith('mg'):
+        return first_digit - 4  # 5→1, 6→2
+    return first_digit
+
+
 @router.callback_query(F.data.startswith('dept:'))
 async def on_department_select(callback: CallbackQuery):
     """Выбрано направление → показать курсы."""
@@ -298,32 +312,34 @@ async def on_department_select(callback: CallbackQuery):
     program = parts[1] if len(parts) > 1 else ''
 
     conn = get_connection()
-    rows = conn.execute(
-        """SELECT DISTINCT
-              CASE
-                WHEN code LIKE 'с1%' OR code LIKE 'пп1%' THEN '1 курс'
-                WHEN code LIKE 'с2%' OR code LIKE 'пп2%' THEN '2 курс'
-                WHEN code LIKE 'с3%' OR code LIKE 'пп3%' THEN '3 курс'
-                WHEN code LIKE 'с4%' OR code LIKE 'пп4%' THEN '4 курс'
-                WHEN code LIKE 'мг5%' THEN '1 курс маг.'
-                WHEN code LIKE 'мг6%' THEN '2 курс маг.'
-                ELSE code
-              END as course_name,
-              MIN(code) as first_code
-           FROM groups_
-           WHERE department = ? AND program = ?
-           GROUP BY course_name
-           ORDER BY first_code""",
+    groups = conn.execute(
+        "SELECT id, code FROM groups_ WHERE department = ? AND program = ? ORDER BY code",
         (department, program)
     ).fetchall()
     conn.close()
 
+    # Группируем по курсам
+    courses = {}  # {номер_курса: [группы]}
+    for g in groups:
+        c = detect_course(g['code'])
+        if c not in courses:
+            courses[c] = []
+        courses[c].append(g)
+
+    is_mag = department.lower().startswith('маг')
+
     buttons = []
-    for r in rows:
+    for c in sorted(courses.keys()):
+        if c <= 0:
+            label = f"Группы ({len(courses[c])})"
+        elif is_mag:
+            label = f"{c} курс маг. ({len(courses[c])} гр.)"
+        else:
+            label = f"{c} курс ({len(courses[c])} гр.)"
         buttons.append([
             InlineKeyboardButton(
-                text=r['course_name'],
-                callback_data=f"course:{department}|{program}|{r['course_name']}",
+                text=label,
+                callback_data=f"course:{department}|{program}|{c}",
             )
         ])
     buttons.append([
@@ -344,36 +360,16 @@ async def on_course_select(callback: CallbackQuery):
     parts = callback.data.split(':', 1)[1].split('|')
     department = parts[0]
     program = parts[1]
-    course_name = parts[2]
-
-    # Определяем префикс кода группы по курсу
-    prefix_map = {
-        '1 курс': ['с1', 'пп1'],
-        '2 курс': ['с2', 'пп2'],
-        '3 курс': ['с3', 'пп3'],
-        '4 курс': ['с4', 'пп4'],
-        '1 курс маг.': ['мг5'],
-        '2 курс маг.': ['мг6'],
-    }
-    prefixes = prefix_map.get(course_name, [])
+    target_course = int(parts[2])
 
     conn = get_connection()
-    if prefixes:
-        conditions = ' OR '.join(f"code LIKE '{p}%'" for p in prefixes)
-        rows = conn.execute(
-            f"""SELECT id, code FROM groups_
-                WHERE department = ? AND program = ? AND ({conditions})
-                ORDER BY code""",
-            (department, program)
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            """SELECT id, code FROM groups_
-               WHERE department = ? AND program = ?
-               ORDER BY code""",
-            (department, program)
-        ).fetchall()
+    all_groups = conn.execute(
+        "SELECT id, code FROM groups_ WHERE department = ? AND program = ? ORDER BY code",
+        (department, program)
+    ).fetchall()
     conn.close()
+
+    rows = [g for g in all_groups if detect_course(g['code']) == target_course]
 
     buttons = []
     for r in rows:
@@ -403,18 +399,27 @@ async def on_group_select(callback: CallbackQuery):
     conn = get_connection()
     set_user_group(conn, callback.message.chat.id, group_id)
     user = get_user_group(conn, callback.message.chat.id)
+
+    # Проверить есть ли предметы по выбору
+    conflicts = get_conflicting_subjects(conn, user['group_id'])
     conn.close()
 
-    await callback.message.edit_text(
+    text = (
         f"✅ Группа: <b>{user['group_code']}</b>\n"
-        f"   {user['faculty_name']}, {user['department']}\n\n"
-        f"Используй кнопки внизу 👇",
-        parse_mode=ParseMode.HTML,
+        f"   {user['faculty_name']}, {user['department']}\n"
     )
-    await callback.message.answer(
-        "Готово! Выбери что показать:",
-        reply_markup=MAIN_KEYBOARD,
-    )
+
+    if conflicts:
+        text += (
+            f"\n⚠️ В расписании <b>{len(conflicts)}</b> предметов по выбору.\n"
+            f"Нажми <b>📋 Предметы</b>, чтобы отметить свои — "
+            f"тогда в расписании будут только они.\n"
+        )
+
+    text += "\nИспользуй кнопки внизу 👇"
+
+    await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
+    await callback.message.answer("Готово!", reply_markup=MAIN_KEYBOARD)
     await callback.answer()
 
 
@@ -432,6 +437,10 @@ async def cmd_today(message: Message):
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
     text += format_day_schedule(lessons, d)
+
+    # В выходные подсказываем про следующую неделю
+    if d.weekday() >= 5 and not lessons:
+        text += "\n\nНажми <b>🗓 Неделя</b> — покажу следующую."
 
     await message.answer(
         text, parse_mode=ParseMode.HTML,
@@ -467,6 +476,10 @@ async def cmd_week(message: Message):
 
     today = date.today()
     monday = today - timedelta(days=today.weekday())
+
+    # В выходные показываем следующую неделю
+    if today.weekday() >= 5:
+        monday = monday + timedelta(days=7)
 
     await send_week(message, user, monday)
 
