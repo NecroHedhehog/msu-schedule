@@ -38,8 +38,9 @@ def build_main_keyboard():
     buttons = [
         [KeyboardButton(text="📅 Сегодня"), KeyboardButton(text="📆 Завтра")],
         [KeyboardButton(text="🗓 Неделя"), KeyboardButton(text="📋 Предметы")],
+        [KeyboardButton(text="👨‍🏫 Преподаватель"), KeyboardButton(text="👥 Сменить группу")],
     ]
-    bottom_row = [KeyboardButton(text="👥 Сменить группу")]
+    bottom_row = []
     if AD_FULL_TEXT:
         bottom_row.append(KeyboardButton(text=AD_BUTTON_LABEL))
     buttons.append(bottom_row)
@@ -643,7 +644,83 @@ async def cmd_stats(message: Message):
         f"<b>Топ групп:</b>\n{top or '  нет данных'}",
         parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 
+# === Расписание преподавателя ===
 
+@router.message(F.text == "👨‍🏫 Преподаватель")
+async def cmd_teacher_start(message: Message):
+    do_track(message, 'teacher_search')
+    await message.answer(
+        "👨‍🏫 Напиши фамилию преподавателя (или первые буквы):",
+        parse_mode=ParseMode.HTML,
+        reply_markup=MAIN_KEYBOARD,
+    )
+
+
+@router.callback_query(F.data.startswith('tch:'))
+async def on_teacher_select(callback: CallbackQuery):
+    teacher_name = callback.data.split(':', 1)[1]
+
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT date, pair_number, time_start, time_end, subject, subject_abbr,
+                  lesson_type, room, teacher, g.code as group_code
+           FROM lessons l
+           JOIN groups_ g ON l.group_id = g.id
+           WHERE l.teacher LIKE ? AND l.date >= date('now') AND l.date <= date('now', '+14 days')
+           ORDER BY l.date, l.pair_number""",
+        (f'%{teacher_name}%',)
+    ).fetchall()
+    conn.close()
+
+    if not rows:
+        await callback.message.edit_text(
+            f"👨‍🏫 <b>{teacher_name}</b>\n\nНет занятий в ближайшие 2 недели.",
+            parse_mode=ParseMode.HTML,
+        )
+        await callback.answer()
+        return
+
+    # Группируем по дням
+    from collections import defaultdict
+    from datetime import datetime
+    days = defaultdict(list)
+    for r in rows:
+        d = datetime.strptime(r['date'], '%Y-%m-%d').date()
+        days[d].append(r)
+
+    text = f"👨‍🏫 <b>{teacher_name}</b>\n"
+    for d in sorted(days.keys()):
+        from bot.formatting import format_date_header, TYPE_EMOJI
+        text += f"\n{format_date_header(d)}\n"
+
+        # Группируем: (pair, subject, room, type) → [группы]
+        seen = {}
+        order = []
+        for l in days[d]:
+            key = (l['pair_number'], l['subject'], l['room'], l['lesson_type'],
+                   l['time_start'], l['time_end'], l['subject_abbr'])
+            if key not in seen:
+                seen[key] = []
+                order.append(key)
+            seen[key].append(l['group_code'])
+
+        for key in order:
+            pair, subj, room, ltype, t_start, t_end, abbr = key
+            groups = seen[key]
+            emoji = TYPE_EMOJI.get(ltype, '📌')
+            name = abbr or subj
+            if len(name) > 20:
+                name = name[:17] + '...'
+            groups_str = ', '.join(groups)
+            text += f"  {emoji} {pair} ({t_start}–{t_end}) {name} {room} [{ltype}]\n"
+            text += f"     гр. {groups_str}\n"
+
+    if len(text) > 4000:
+        text = text[:3950] + "\n\n..."
+
+    await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
+    await callback.answer()
+    
 # === Сменить группу / Помощь ===
 
 @router.message(F.text == "👥 Сменить группу")
@@ -675,9 +752,41 @@ async def on_text_message(message: Message):
     text = message.text.strip()
 
     if text in ("📅 Сегодня", "📆 Завтра", "🗓 Неделя",
-                "📋 Предметы", "👥 Сменить группу", AD_BUTTON_LABEL):
+                "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель", AD_BUTTON_LABEL):
         return
+# Поиск преподавателя — если текст похож на фамилию (начинается с заглавной, нет цифр)
+    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
+        conn = get_connection()
+        rows = conn.execute(
+            """SELECT DISTINCT teacher FROM lessons
+               WHERE teacher LIKE ? AND teacher != ''
+               ORDER BY teacher LIMIT 50""",
+            (f'%{text}%',)
+        ).fetchall()
+        conn.close()
 
+        if rows:
+            # Разбиваем "Осипова Н.Г., Елишев С.О." на отдельных
+            seen = set()
+            individual = []
+            for r in rows:
+                for name in r['teacher'].split(', '):
+                    name = name.strip()
+                    if name and text.lower() in name.lower() and name not in seen:
+                        seen.add(name)
+                        individual.append(name)
+
+            individual.sort()
+            buttons = [[InlineKeyboardButton(
+                text=name, callback_data=f"tch:{name}"
+            )] for name in individual[:10]]
+
+            await message.answer(
+                f"👨‍🏫 Найдено преподавателей: {len(individual)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            )
+            return
+            
     query = normalize_group_query(text)
     query_with_prefix = 'с' + query if query.isdigit() else query
 
