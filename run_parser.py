@@ -17,8 +17,7 @@ from core.database import (
 from core.alerts import alert_parse_ok, alert_parse_error, alert_parse_warning
 
 # Импорт функций для студентов
-from core.db_students import get_groups_for_student_parse, save_students, update_lesson_teachers, ensure_tables
-
+from core.db_students import get_groups_for_student_parse, save_students, update_lesson_teachers, ensure_tables, fill_teachers_from_same_subject
 MIN_EXPECTED_LESSONS = 50
 
 
@@ -156,12 +155,13 @@ def run_teachers():
         import traceback
         traceback.print_exc()
         return
-
     conn = get_connection()
     updated = update_lesson_teachers(conn, result['teacher_updates'])
+    filled = fill_teachers_from_same_subject(conn)
     conn.close()
 
-    print(f"\n[teachers] Обновлено: {updated} занятий")
+    print(f"[teachers] Обновлено: {updated} занятий")
+    print(f"[teachers] Дозаполнено из лекций→семинаров: {filled}")
     alert_parse_ok('socio-teachers', result['teachers_found'], updated)
 
 

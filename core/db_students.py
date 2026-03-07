@@ -72,3 +72,30 @@ def get_students_by_group(conn, group_id: int) -> list:
         "SELECT * FROM students WHERE group_id = ? ORDER BY full_name",
         (group_id,)
     ).fetchall()
+def fill_teachers_from_same_subject(conn) -> int:
+    """Дозаполнить преподавателей только для предметов по выбору (>1 предмет на пару)."""
+    cursor = conn.execute("""
+        UPDATE lessons SET teacher = (
+            SELECT l2.teacher FROM lessons l2
+            WHERE l2.group_id = lessons.group_id
+              AND l2.date = lessons.date
+              AND l2.subject = lessons.subject
+              AND l2.teacher != ''
+            LIMIT 1
+        )
+        WHERE teacher = ''
+          AND EXISTS (
+            SELECT 1 FROM lessons l2
+            WHERE l2.group_id = lessons.group_id
+              AND l2.date = lessons.date
+              AND l2.subject = lessons.subject
+              AND l2.teacher != ''
+        )
+          AND (SELECT COUNT(DISTINCT subject) FROM lessons l3
+               WHERE l3.group_id = lessons.group_id
+                 AND l3.date = lessons.date
+                 AND l3.pair_number = lessons.pair_number
+              ) > 1
+    """)
+    conn.commit()
+    return cursor.rowcount
