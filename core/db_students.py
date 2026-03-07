@@ -72,6 +72,7 @@ def get_students_by_group(conn, group_id: int) -> list:
         "SELECT * FROM students WHERE group_id = ? ORDER BY full_name",
         (group_id,)
     ).fetchall()
+    
 def fill_teachers_from_same_subject(conn) -> int:
     """Дозаполнить преподавателей только для предметов по выбору (>1 предмет на пару)."""
     cursor = conn.execute("""
@@ -99,3 +100,48 @@ def fill_teachers_from_same_subject(conn) -> int:
     """)
     conn.commit()
     return cursor.rowcount
+
+def get_students_by_name(conn, query: str, group_id: int = None) -> list:
+    """Поиск студентов по началу фамилии."""
+    if group_id:
+        return conn.execute(
+            """SELECT s.*, g.code as group_code FROM students s
+               JOIN groups_ g ON s.group_id = g.id
+               WHERE s.full_name LIKE ? AND s.group_id = ?
+               ORDER BY s.full_name LIMIT 10""",
+            (f'{query}%', group_id)
+        ).fetchall()
+    else:
+        return conn.execute(
+            """SELECT s.*, g.code as group_code FROM students s
+               JOIN groups_ g ON s.group_id = g.id
+               WHERE s.full_name LIKE ?
+               ORDER BY s.full_name LIMIT 10""",
+            (f'{query}%',)
+        ).fetchall()
+
+
+def bind_student(conn, chat_id: int, student_id: int):
+    """Привязать Telegram-аккаунт к студенту."""
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN student_id INTEGER")
+        conn.commit()
+    except Exception:
+        pass
+    conn.execute("UPDATE users SET student_id = ? WHERE chat_id = ?", (student_id, chat_id))
+    conn.commit()
+
+
+def get_bound_student(conn, chat_id: int) -> dict | None:
+    """Получить привязанного студента."""
+    try:
+        row = conn.execute(
+            """SELECT s.*, g.code as group_code FROM users u
+               JOIN students s ON u.student_id = s.id
+               JOIN groups_ g ON s.group_id = g.id
+               WHERE u.chat_id = ?""",
+            (chat_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    except Exception:
+        return None

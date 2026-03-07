@@ -27,6 +27,7 @@ from core.database import (
     track_user, log_action, get_stats,
 )
 from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
+from core.db_students import get_students_by_name, bind_student, get_bound_student
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -259,6 +260,7 @@ async def show_department_selection(message: Message):
             seen.add(key)
             buttons.append([InlineKeyboardButton(text=label, callback_data=f"dept:{key}")])
 
+    buttons.append([InlineKeyboardButton(text="🔍 Найти себя по фамилии", callback_data="find_by_name")])
     buttons.append([InlineKeyboardButton(text="✏️ Ввести номер группы", callback_data="manual_input")])
     await message.answer("📚 Выбери направление:",
                          reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
@@ -271,6 +273,54 @@ async def on_manual_input(callback: CallbackQuery):
         parse_mode=ParseMode.HTML)
     await callback.answer()
 
+@router.callback_query(F.data == 'find_by_name')
+async def on_find_by_name(callback: CallbackQuery):
+    await callback.message.edit_text(
+        "🔍 Напиши свою фамилию (или первые буквы):",
+        parse_mode=ParseMode.HTML,
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('bind:'))
+async def on_bind_student(callback: CallbackQuery):
+    student_id = int(callback.data.split(':')[1])
+
+    conn = get_connection()
+    student = conn.execute(
+        """SELECT s.*, g.code as group_code FROM students s
+           JOIN groups_ g ON s.group_id = g.id WHERE s.id = ?""",
+        (student_id,)
+    ).fetchone()
+
+    if not student:
+        await callback.answer("Студент не найден")
+        conn.close()
+        return
+
+    bind_student(conn, callback.message.chat.id, student_id)
+    set_user_group(conn, callback.message.chat.id, student['group_id'])
+
+    # Проверить предметы по выбору
+    conflicts = get_conflicting_subjects(conn, student['group_id'])
+    conn.close()
+
+    do_track_cb(callback, 'bind_student', f"{student['full_name']} ({student['group_code']})")
+
+    text = (
+        f"✅ <b>{student['full_name']}</b>\n"
+        f"   Группа: {student['group_code']}\n"
+    )
+    if conflicts:
+        text += (
+            f"\n⚠️ В расписании <b>{len(conflicts)}</b> предметов по выбору.\n"
+            f"Нажми <b>📋 Предметы</b>, чтобы отметить свои.\n"
+        )
+    text += "\nИспользуй кнопки внизу 👇"
+
+    await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
+    await callback.message.answer("Готово!", reply_markup=MAIN_KEYBOARD)
+    await callback.answer()
 
 @router.callback_query(F.data == 'back_to_dept')
 async def on_back_to_dept(callback: CallbackQuery):
@@ -289,6 +339,7 @@ async def on_back_to_dept(callback: CallbackQuery):
         if key not in seen:
             seen.add(key)
             buttons.append([InlineKeyboardButton(text=label, callback_data=f"dept:{key}")])
+    buttons.append([InlineKeyboardButton(text="🔍 Найти себя по фамилии", callback_data="find_by_name")])
     buttons.append([InlineKeyboardButton(text="✏️ Ввести номер группы", callback_data="manual_input")])
 
     await callback.message.edit_text("📚 Выбери направление:",
@@ -783,6 +834,23 @@ async def on_text_message(message: Message):
 
             await message.answer(
                 f"👨‍🏫 Найдено преподавателей: {len(individual)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            )
+            return
+            # Поиск студента — если текст с заглавной, >= 3 букв, нет цифр
+    if len(text) >= 3 and text[0].isupper() and not any(c.isdigit() for c in text):
+        conn = get_connection()
+        found = get_students_by_name(conn, text)
+        conn.close()
+
+        if found:
+            buttons = [[InlineKeyboardButton(
+                text=f"{s['full_name']} ({s['group_code']})",
+                callback_data=f"bind:{s['id']}",
+            )] for s in found]
+
+            await message.answer(
+                f"👤 Найдено: {len(found)}",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
             )
             return
