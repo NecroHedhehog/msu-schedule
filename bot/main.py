@@ -26,7 +26,7 @@ from core.database import (
     get_conflicting_subjects, get_user_subjects, toggle_user_subject,
     track_user, log_action, get_stats,
 )
-from bot.formatting import format_day_schedule, format_week_schedule
+from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -534,7 +534,7 @@ async def cmd_subjects(message: Message):
     buttons = []
     for s in conflicts:
         check = '✅' if s['subject'] in selected else '⬜️'
-        name = s['subject'][:40] if len(s['subject']) > 40 else s['subject']
+        name = format_subject_button(s)
         buttons.append([InlineKeyboardButton(
             text=f"{check} {name}", callback_data=f"subj:{subject_hash(s['subject'])}")])
     buttons.append([
@@ -599,9 +599,10 @@ async def on_subject_toggle(callback: CallbackQuery):
     buttons = []
     for s in conflicts:
         check = '✅' if s['subject'] in selected else '⬜️'
-        name = s['subject'][:40] if len(s['subject']) > 40 else s['subject']
-        buttons.append([InlineKeyboardButton(
-            text=f"{check} {name}", callback_data=f"subj:{subject_hash(s['subject'])}")])
+        name = format_subject_button(s)
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{check} {name}", callback_data=f"subj:{subject_hash(s['subject'])}")])
     buttons.append([
         InlineKeyboardButton(text="🔄 Сбросить всё", callback_data="subj:reset"),
         InlineKeyboardButton(text="✅ Готово", callback_data="subj:done"),

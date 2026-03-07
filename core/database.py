@@ -237,7 +237,7 @@ def set_user_group(conn, chat_id: int, group_id: int):
 def get_conflicting_subjects(conn, group_id: int) -> list[dict]:
     """Предметы, которые стоят на одну пару (предметы по выбору)."""
     rows = conn.execute(
-        """SELECT date, pair_number, time_start, subject, subject_abbr, room, lesson_type
+        """SELECT date, pair_number, time_start, subject, subject_abbr, room, lesson_type, teacher
            FROM lessons WHERE group_id = ? AND date >= date('now')
            ORDER BY date, pair_number, subject""",
         (group_id,)

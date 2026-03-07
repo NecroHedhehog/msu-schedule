@@ -15,7 +15,7 @@ MONTHS_RU = [
 
 TYPE_EMOJI = {
     'Лк': '📗', 'Сем': '📙', 'Зч': '📝',
-    'Экз': '🔴', 'Пр': '📘', 'Конс': '💬',
+    'Экз': '🔴', 'Пр': '📘', 'Пз': '📘', 'Конс': '💬', 'Доп': '📎',
 }
 
 
@@ -25,15 +25,25 @@ def format_date_header(d: date) -> str:
 
 
 def format_lesson(lesson) -> str:
+    """Форматировать занятие: две строки — пара + преподаватель."""
     emoji = TYPE_EMOJI.get(lesson['lesson_type'], '📌')
     name = lesson['subject_abbr'] or lesson['subject']
-    if len(name) > 30:
-        name = name[:27] + '...'
-    return (
+    if len(name) > 25:
+        name = name[:22] + '...'
+
+    room = lesson['room'] or '?'
+    type_short = lesson['lesson_type'] or ''
+    teacher = lesson['teacher'] if lesson['teacher'] else ''
+
+    line1 = (
         f"  {emoji} <b>{lesson['pair_number']}</b> "
         f"({lesson['time_start']}–{lesson['time_end']}) "
-        f"<b>{name}</b> [{lesson['lesson_type']}] ауд.{lesson['room']}"
+        f"<b>{name}</b> {room} [{type_short}]"
     )
+
+    if teacher:
+        return f"{line1}\n     {teacher}"
+    return line1
 
 
 def format_day_schedule(lessons: list, d: date, with_ad: bool = True) -> str:
@@ -47,7 +57,7 @@ def format_day_schedule(lessons: list, d: date, with_ad: bool = True) -> str:
         text = '\n'.join(lines)
 
     if with_ad and AD_TEASER:
-        text += f"\n\n{AD_TEASER}"
+        text += f"\n\n{'─' * 20}\n{AD_TEASER}"
 
     return text
 
@@ -62,6 +72,25 @@ def format_week_schedule(days: dict) -> str:
     text = '\n\n'.join(parts)
 
     if AD_TEASER:
-        text += f"\n\n{AD_TEASER}"
+        text += f"\n\n{'─' * 20}\n{AD_TEASER}"
 
     return text
+
+
+def format_subject_button(subject_data: dict) -> str:
+    """Текст кнопки предмета: аббревиатура + преподаватель."""
+    abbr = subject_data.get('subject_abbr') or subject_data['subject']
+    teacher = subject_data.get('teacher', '')
+
+    if len(abbr) > 15:
+        abbr = abbr[:12] + '...'
+
+    if teacher:
+        label = f"{abbr} — {teacher}"
+    else:
+        label = abbr
+
+    if len(label) > 40:
+        label = label[:37] + '...'
+
+    return label
