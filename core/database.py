@@ -327,21 +327,30 @@ def log_action(conn, chat_id: int, action: str, detail: str = None):
 
 
 def get_stats(conn) -> dict:
-    """Статистика для /stats."""
-    total = conn.execute("SELECT COUNT(*) as c FROM users").fetchone()['c']
+    """Статистика для /stats. Админ исключён из подсчётов."""
+    from core.config import ADMIN_CHAT_ID
+    admin_id = int(ADMIN_CHAT_ID) if ADMIN_CHAT_ID else 0
+
+    total = conn.execute(
+        "SELECT COUNT(*) as c FROM users WHERE chat_id != ?", (admin_id,)
+    ).fetchone()['c']
     active_7d = conn.execute(
-        "SELECT COUNT(*) as c FROM users WHERE last_active > datetime('now', '-7 days')"
+        "SELECT COUNT(*) as c FROM users WHERE last_active > datetime('now', '-7 days') AND chat_id != ?",
+        (admin_id,)
     ).fetchone()['c']
     today_actions = conn.execute(
-        "SELECT COUNT(*) as c FROM activity_log WHERE timestamp > date('now')"
+        "SELECT COUNT(*) as c FROM activity_log WHERE timestamp > date('now') AND chat_id != ?",
+        (admin_id,)
     ).fetchone()['c']
     ad_clicks = conn.execute(
-        "SELECT COUNT(*) as c FROM activity_log WHERE action = 'ad_click'"
+        "SELECT COUNT(*) as c FROM activity_log WHERE action = 'ad_click' AND chat_id != ?",
+        (admin_id,)
     ).fetchone()['c']
     top_groups = conn.execute(
         """SELECT group_code, COUNT(*) as cnt FROM users
-           WHERE group_code IS NOT NULL AND group_code != ''
-           GROUP BY group_code ORDER BY cnt DESC LIMIT 10"""
+           WHERE group_code IS NOT NULL AND group_code != '' AND chat_id != ?
+           GROUP BY group_code ORDER BY cnt DESC LIMIT 10""",
+        (admin_id,)
     ).fetchall()
     return {
         'total': total,

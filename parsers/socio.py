@@ -160,7 +160,17 @@ class SocioParser(BaseParser):
 
             for i, cell in enumerate(table.find_all('td', class_=self.PAIR_CELL_CLASS)):
                 pair = i + 1
-                t_start, t_end = PAIR_TIMES.get(pair, ('?', '?'))
+                 # По средам пары 4-5 — МФК, другое время
+                from core.config import PAIR_TIMES_WED_MFK
+                is_wednesday = False
+                try:
+                    is_wednesday = datetime.strptime(iso_date, '%Y-%m-%d').weekday() == 2
+                except ValueError:
+                    pass
+                if is_wednesday and pair in PAIR_TIMES_WED_MFK:
+                    t_start, t_end = PAIR_TIMES_WED_MFK[pair]
+                else:
+                    t_start, t_end = PAIR_TIMES.get(pair, ('?', '?'))
 
                 for div in cell.find_all('div', id=self.LESSON_ID):
                     parsed = self._parse_lesson(div, iso_date, pair, t_start, t_end)

@@ -18,7 +18,8 @@ def _load_env():
                 continue
             if '=' in line:
                 key, value = line.split('=', 1)
-                os.environ.setdefault(key.strip(), value.strip())
+                value = value.strip().replace('\\n', '\n')
+                os.environ.setdefault(key.strip(), value)
 
 _load_env()
 
@@ -31,17 +32,23 @@ PARSER_REQUEST_DELAY = float(os.getenv('PARSER_REQUEST_DELAY', '2'))
 
 # --- Реклама ---
 
-AD_TEASER = os.getenv('AD_TEASER', '')          # короткая строка под расписанием
-AD_FULL_TEXT = os.getenv('AD_FULL_TEXT', '')      # полный текст по кнопке "Полезное"
+AD_TEASER = os.getenv('AD_TEASER', '')
+AD_FULL_TEXT = os.getenv('AD_FULL_TEXT', '')
 AD_BUTTON_LABEL = os.getenv('AD_BUTTON_LABEL', '💡 Полезное')
 
 # --- Расписание пар ---
 
 PAIR_TIMES = {
     1: ('09:00', '10:30'),
-    2: ('10:45', '12:15'),
-    3: ('12:55', '14:25'),
-    4: ('14:40', '16:10'),
-    5: ('16:25', '17:55'),
-    6: ('18:00', '19:30'),
+    2: ('10:40', '12:10'),
+    3: ('12:20', '13:50'),
+    4: ('14:00', '15:30'),
+    5: ('15:40', '17:10'),
+    6: ('17:20', '18:50'),
+}
+
+# По средам МФК (пары 4-5) в другое время
+PAIR_TIMES_WED_MFK = {
+    4: ('15:10', '16:40'),
+    5: ('17:00', '18:30'),
 }
