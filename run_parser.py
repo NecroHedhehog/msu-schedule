@@ -13,6 +13,11 @@ from core.database import (
     get_connection, get_or_create_faculty, get_or_create_group,
     save_lessons, log_parse
 )
+from core.alerts import alert_parse_ok, alert_parse_error, alert_parse_warning
+
+
+# Минимальное кол-во занятий, ниже которого — подозрительно
+MIN_EXPECTED_LESSONS = 50
 
 
 def run_socio():
@@ -20,10 +25,18 @@ def run_socio():
     from parsers.socio import SocioParser
 
     parser = SocioParser()
-    result = parser.parse()
+
+    try:
+        result = parser.parse()
+    except Exception as e:
+        alert_parse_error('socio', f"Исключение: {e}")
+        conn = get_connection()
+        log_parse(conn, 'socio', 'error', message=str(e))
+        conn.close()
+        return
 
     if not result['groups']:
-        print("❌ Парсер не вернул данных!")
+        alert_parse_error('socio', 'Парсер вернул 0 групп. Сайт недоступен или сменил вёрстку?')
         conn = get_connection()
         log_parse(conn, 'socio', 'error', message='Нет данных')
         conn.close()
@@ -60,6 +73,16 @@ def run_socio():
 
     print(f"💾 Сохранено в базу: {len(result['groups'])} групп, {total_lessons} занятий")
 
+    # --- Алерты ---
+    if total_lessons < MIN_EXPECTED_LESSONS:
+        alert_parse_warning(
+            'socio',
+            f"Подозрительно мало данных: {total_lessons} занятий, {len(result['groups'])} групп.\n"
+            f"Возможно сайт частично не отдал расписание."
+        )
+    else:
+        alert_parse_ok('socio', len(result['groups']), total_lessons)
+
 
 def run_test():
     """
@@ -79,7 +102,7 @@ def run_test():
         return
 
     parser = SocioParser()
-    lessons = parser._parse_schedule_page(html)
+    lessons = parser._parse_page(html)
 
     print(f"\n📊 Результат: {len(lessons)} занятий\n")
 
