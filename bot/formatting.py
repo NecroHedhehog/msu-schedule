@@ -1,8 +1,7 @@
-"""
-Форматирование расписания для Telegram-сообщений.
-"""
+"""Форматирование расписания для Telegram."""
 
 from datetime import date
+from core.config import AD_TEASER
 
 WEEKDAYS_RU = {
     0: 'Понедельник', 1: 'Вторник', 2: 'Среда',
@@ -37,14 +36,20 @@ def format_lesson(lesson) -> str:
     )
 
 
-def format_day_schedule(lessons: list, d: date) -> str:
+def format_day_schedule(lessons: list, d: date, with_ad: bool = True) -> str:
     header = format_date_header(d)
     if not lessons:
-        return f"{header}\n  🎉 Нет занятий!"
-    lines = [header]
-    for l in lessons:
-        lines.append(format_lesson(l))
-    return '\n'.join(lines)
+        text = f"{header}\n  🎉 Нет занятий!"
+    else:
+        lines = [header]
+        for l in lessons:
+            lines.append(format_lesson(l))
+        text = '\n'.join(lines)
+
+    if with_ad and AD_TEASER:
+        text += f"\n\n{AD_TEASER}"
+
+    return text
 
 
 def format_week_schedule(days: dict) -> str:
@@ -52,6 +57,11 @@ def format_week_schedule(days: dict) -> str:
         return "📭 На эту неделю занятий нет"
     parts = []
     for d in sorted(days.keys()):
-        if d.weekday() < 6:  # Пн-Сб
-            parts.append(format_day_schedule(days[d], d))
-    return '\n\n'.join(parts)
+        if d.weekday() < 6:
+            parts.append(format_day_schedule(days[d], d, with_ad=False))
+    text = '\n\n'.join(parts)
+
+    if AD_TEASER:
+        text += f"\n\n{AD_TEASER}"
+
+    return text
