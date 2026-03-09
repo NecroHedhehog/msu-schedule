@@ -164,6 +164,10 @@ class SocioParser(BaseParser):
                     page = self.download(url, encoding=self.ENCODING)
                     if page:
                         lessons.extend(self._parse_page(page))
+                        
+                        # Сохраняем предметы этого студента
+                student_subjects = list(set(l['subject'] for l in lessons))
+                student['subjects'] = student_subjects
 
                 # Собираем преподавателей
                 new_teachers = 0

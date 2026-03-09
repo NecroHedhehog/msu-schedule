@@ -27,7 +27,7 @@ from core.database import (
     track_user, log_action, get_stats,
 )
 from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
-from core.db_students import get_students_by_name, bind_student, get_bound_student
+from core.db_students import get_students_by_name, bind_student, get_bound_student, apply_student_filter
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -276,7 +276,7 @@ async def on_manual_input(callback: CallbackQuery):
 @router.callback_query(F.data == 'find_by_name')
 async def on_find_by_name(callback: CallbackQuery):
     await callback.message.edit_text(
-        "🔍 Напиши свою фамилию (или первые буквы):",
+        "🔍 Напиши фамилию (минимум 2 буквы):",
         parse_mode=ParseMode.HTML,
     )
     await callback.answer()
@@ -304,14 +304,19 @@ async def on_bind_student(callback: CallbackQuery):
     # Проверить предметы по выбору
     conflicts = get_conflicting_subjects(conn, student['group_id'])
     conn.close()
-
+    # Автоматически установить фильтр предметов
+    conn2 = get_connection()
+    applied = apply_student_filter(conn2, callback.message.chat.id, student_id, student['group_id'])
+    conn2.close()
     do_track_cb(callback, 'bind_student', f"{student['full_name']} ({student['group_code']})")
 
     text = (
         f"✅ <b>{student['full_name']}</b>\n"
         f"   Группа: {student['group_code']}\n"
     )
-    if conflicts:
+    if applied:
+        text += f"\n✅ Автоматически отмечено <b>{applied}</b> твоих предметов по выбору."
+    elif conflicts:
         text += (
             f"\n⚠️ В расписании <b>{len(conflicts)}</b> предметов по выбору.\n"
             f"Нажми <b>📋 Предметы</b>, чтобы отметить свои.\n"
@@ -838,7 +843,7 @@ async def on_text_message(message: Message):
             )
             return
             # Поиск студента — если текст с заглавной, >= 3 букв, нет цифр
-    if len(text) >= 3 and text[0].isupper() and not any(c.isdigit() for c in text):
+    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
         conn = get_connection()
         found = get_students_by_name(conn, text)
         conn.close()

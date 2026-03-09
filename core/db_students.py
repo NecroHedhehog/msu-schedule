@@ -145,3 +145,64 @@ def get_bound_student(conn, chat_id: int) -> dict | None:
         return dict(row) if row else None
     except Exception:
         return None
+
+def ensure_student_subjects_table(conn):
+    """Таблица предметов студента."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS student_subjects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            subject TEXT NOT NULL,
+            UNIQUE(student_id, subject)
+        );
+        CREATE INDEX IF NOT EXISTS idx_student_subjects ON student_subjects(student_id);
+    """)
+    conn.commit()
+
+
+def save_student_subjects(conn, student_db_id: int, subjects: list):
+    """Сохранить предметы конкретного студента."""
+    conn.execute("DELETE FROM student_subjects WHERE student_id = ?", (student_db_id,))
+    for subj in subjects:
+        conn.execute(
+            "INSERT OR IGNORE INTO student_subjects (student_id, subject) VALUES (?, ?)",
+            (student_db_id, subj)
+        )
+    conn.commit()
+
+def apply_student_filter(conn, chat_id: int, student_id: int, group_id: int):
+    """При привязке — скопировать предметы студента в user_subjects."""
+    # Берём предметы студента
+    rows = conn.execute(
+        "SELECT subject FROM student_subjects WHERE student_id = ?",
+        (student_id,)
+    ).fetchall()
+
+    if not rows:
+        return 0
+
+    student_subjects = {r['subject'] for r in rows}
+
+    # Находим предметы по выбору в группе (конфликтные)
+    from core.database import get_conflicting_subjects
+    conflicts = get_conflicting_subjects(conn, group_id)
+    conflict_subjects = {c['subject'] for c in conflicts}
+
+    # Пересечение: предметы студента которые являются предметами по выбору
+    to_select = student_subjects & conflict_subjects
+
+    if not to_select:
+        return 0
+
+    # Очищаем старый выбор и ставим новый
+    conn.execute(
+        "DELETE FROM user_subjects WHERE chat_id = ? AND group_id = ?",
+        (chat_id, group_id)
+    )
+    for subj in to_select:
+        conn.execute(
+            "INSERT OR IGNORE INTO user_subjects (chat_id, group_id, subject) VALUES (?, ?, ?)",
+            (chat_id, group_id, subj)
+        )
+    conn.commit()
+    return len(to_select)

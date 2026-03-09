@@ -17,7 +17,11 @@ from core.database import (
 from core.alerts import alert_parse_ok, alert_parse_error, alert_parse_warning
 
 # Импорт функций для студентов
-from core.db_students import get_groups_for_student_parse, save_students, update_lesson_teachers, ensure_tables, fill_teachers_from_same_subject
+from core.db_students import (
+    get_groups_for_student_parse, save_students, update_lesson_teachers,
+    ensure_tables, fill_teachers_from_same_subject,
+    ensure_student_subjects_table, save_student_subjects,
+)
 MIN_EXPECTED_LESSONS = 50
 
 
@@ -110,7 +114,9 @@ def run_students():
         return
 
     conn = get_connection()
+    ensure_student_subjects_table(conn)
     students_by_group = {}
+
     for s in result['students']:
         gid = s['group_id']
         if gid not in students_by_group:
@@ -120,6 +126,16 @@ def run_students():
     total_students = 0
     for gid, students in students_by_group.items():
         save_students(conn, gid, students)
+        # Сохранить предметы каждого студента
+        for s in students:
+            if s.get('subjects'):
+                # Найти student_id в базе по site_id
+                row = conn.execute(
+                    "SELECT id FROM students WHERE group_id = ? AND site_id = ?",
+                    (gid, s['site_id'])
+                ).fetchone()
+                if row:
+                    save_student_subjects(conn, row['id'], s['subjects'])
         total_students += len(students)
 
     updated = update_lesson_teachers(conn, result['teacher_updates'])
