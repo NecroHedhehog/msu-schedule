@@ -810,7 +810,25 @@ async def on_text_message(message: Message):
     if text in ("📅 Сегодня", "📆 Завтра", "🗓 Неделя",
                 "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель", AD_BUTTON_LABEL):
         return
-# Поиск преподавателя — если текст похож на фамилию (начинается с заглавной, нет цифр)
+            # Поиск студента — если текст с заглавной, >= 3 букв, нет цифр
+    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
+        conn = get_connection()
+        found = get_students_by_name(conn, text)
+        conn.close()
+
+        if found:
+            buttons = [[InlineKeyboardButton(
+                text=f"{s['full_name']} ({s['group_code']})",
+                callback_data=f"bind:{s['id']}",
+            )] for s in found]
+
+            await message.answer(
+                f"👤 Найдено: {len(found)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+            )
+            return
+            
+            # Поиск преподавателя — если текст похож на фамилию (начинается с заглавной, нет цифр)
     if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
         conn = get_connection()
         rows = conn.execute(
@@ -839,23 +857,6 @@ async def on_text_message(message: Message):
 
             await message.answer(
                 f"👨‍🏫 Найдено преподавателей: {len(individual)}",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            )
-            return
-            # Поиск студента — если текст с заглавной, >= 3 букв, нет цифр
-    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
-        conn = get_connection()
-        found = get_students_by_name(conn, text)
-        conn.close()
-
-        if found:
-            buttons = [[InlineKeyboardButton(
-                text=f"{s['full_name']} ({s['group_code']})",
-                callback_data=f"bind:{s['id']}",
-            )] for s in found]
-
-            await message.answer(
-                f"👤 Найдено: {len(found)}",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
             )
             return
