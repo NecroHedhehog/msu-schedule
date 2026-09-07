@@ -29,6 +29,22 @@ BOT_TOKEN = os.getenv('BOT_TOKEN', '')
 DB_PATH = PROJECT_ROOT / os.getenv('DB_PATH', 'data/schedule.db')
 ADMIN_CHAT_ID = os.getenv('ADMIN_CHAT_ID', '')
 PARSER_REQUEST_DELAY = float(os.getenv('PARSER_REQUEST_DELAY', '2'))
+PARSER_REQUEST_TIMEOUT = float(os.getenv('PARSER_REQUEST_TIMEOUT', '30'))
+PARSER_INTERVAL_HOURS = float(os.getenv('PARSER_INTERVAL_HOURS', '6'))
+
+# --- Устойчивость парсера ---
+# Сайт факультета регулярно недоступен, поэтому один таймаут не должен
+# означать потерю данных за группу.
+
+# Сколько всего попыток на один запрос (1 = без повторов)
+PARSER_MAX_ATTEMPTS = int(os.getenv('PARSER_MAX_ATTEMPTS', '4'))
+# База экспоненциального бэкоффа в секундах: 3, 6, 12, ...
+PARSER_RETRY_BACKOFF = float(os.getenv('PARSER_RETRY_BACKOFF', '3'))
+# Порог "подозрительно мало занятий" — на группу, а не на факультет
+MIN_LESSONS_PER_GROUP = int(os.getenv('MIN_LESSONS_PER_GROUP', '10'))
+# Не затирать расписание группы, если пришло меньше этой доли от того,
+# что уже лежит в базе за те же даты (сайт икнул и отдал огрызок)
+SHRINK_GUARD_RATIO = float(os.getenv('SHRINK_GUARD_RATIO', '0.5'))
 
 # --- Реклама ---
 
