@@ -68,13 +68,26 @@ def _report(tag: str, parser, problems: list):
         print(f"[{tag}] ! {p}")
 
 
-def _common_problems(parser) -> list:
+def _counter_problems(parser) -> list:
+    """
+    Поводы для статуса 'warning', видимые прямо в счётчиках.
+    В message их не дублируем — они уже есть в stats_line().
+    """
     problems = []
     if parser.requests_failed:
         problems.append(f"неудачных запросов: {parser.requests_failed}")
     if parser.unparsed_blocks:
         problems.append(f"нераспознанных блоков: {parser.unparsed_blocks}")
     return problems
+
+
+def _compose(parser, extra: list) -> tuple:
+    """(статус, сообщение для parse_log, полный список проблем)."""
+    problems = _counter_problems(parser) + extra
+    message = parser.stats_line()
+    if extra:
+        message += ' | ' + ' | '.join(extra)
+    return ('warning' if problems else 'ok'), message, problems
 
 
 # ======= Групповые расписания =======
@@ -131,16 +144,13 @@ def run_socio():
         )
         return
 
-    problems = _common_problems(parser)
+    extra = []
     if guarded:
-        problems.append(f"защита от затирания у {len(guarded)} групп: " + ', '.join(guarded[:5]))
+        extra.append(f"защита от затирания у {len(guarded)} групп: " + ', '.join(guarded[:5]))
     if thin:
-        problems.append(f"мало занятий у {len(thin)} групп: " + ', '.join(thin[:10]))
+        extra.append(f"мало занятий у {len(thin)} групп: " + ', '.join(thin[:10]))
 
-    status = 'warning' if problems else 'ok'
-    message = parser.stats_line()
-    if problems:
-        message += ' | ' + ' | '.join(problems)
+    status, message, problems = _compose(parser, extra)
 
     log_parse(conn, 'socio', status, lessons_count=saved_lessons,
               groups_count=saved_groups, message=message)
@@ -243,11 +253,7 @@ def run_students():
         )
         return
 
-    problems = _common_problems(parser)
-    status = 'warning' if problems else 'ok'
-    message = parser.stats_line()
-    if problems:
-        message += ' | ' + ' | '.join(problems)
+    status, message, problems = _compose(parser, [])
 
     log_parse(conn, 'socio-students', status, lessons_count=updated_lessons,
               groups_count=saved_groups, message=message)
@@ -304,11 +310,7 @@ def run_teachers():
 
     filled = fill_teachers_from_same_subject(conn)
 
-    problems = _common_problems(parser)
-    status = 'warning' if problems else 'ok'
-    message = parser.stats_line()
-    if problems:
-        message += ' | ' + ' | '.join(problems)
+    status, message, problems = _compose(parser, [])
 
     log_parse(conn, 'socio-teachers', status, lessons_count=updated,
               groups_count=result['teachers_found'], message=message)
