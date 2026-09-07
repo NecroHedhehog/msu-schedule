@@ -15,7 +15,10 @@ from core.database import get_connection
 from core.alerts import alert_stale_data
 
 
-DEFAULT_MAX_HOURS = 8
+from core.config import PARSER_INTERVAL_HOURS
+
+# Даём парсеру два интервала форы, прежде чем ругаться
+DEFAULT_MAX_HOURS = PARSER_INTERVAL_HOURS * 2
 
 
 def check(max_hours: float = DEFAULT_MAX_HOURS):
@@ -35,7 +38,7 @@ def check(max_hours: float = DEFAULT_MAX_HOURS):
 
         last_ok = conn.execute(
             """SELECT created_at FROM parse_log
-               WHERE faculty_code = ? AND status = 'ok'
+               WHERE faculty_code = ? AND status IN ('ok', 'warning')
                ORDER BY created_at DESC LIMIT 1""",
             (code,)
         ).fetchone()

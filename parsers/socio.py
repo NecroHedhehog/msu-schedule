@@ -39,12 +39,17 @@ class SocioParser(BaseParser):
 
     # ======= Режим 1: Групповые расписания (существующий) =======
 
-    def parse(self) -> dict:
+    def parse(self, on_group=None) -> dict:
+        """
+        on_group(group_data) — вызывается сразу после сбора каждой группы.
+        Позволяет сохранять по мере продвижения, а не одним куском в конце:
+        обрыв на 40-й группе из 46 больше не обнуляет все 40.
+        """
         print(f"\n[socio] Парсинг групповых расписаний: {self.DOMAIN}")
 
-        main_page = self.download('/index.php', encoding=self.ENCODING)
-        if not main_page:
-            return {'groups': []}
+        # Главная критична: без неё нет ни одного отделения, и продолжать
+        # смысла нет — иначе запишем в базу пустоту и отрапортуем 'ok'.
+        main_page = self.download('/index.php', encoding=self.ENCODING, required=True)
 
         departments = self._find_links(main_page, self.DEPT_LINK_RE)
         departments = [(n, u) for n, u in departments if n not in self.SKIP_DEPARTMENTS]
@@ -88,16 +93,31 @@ class SocioParser(BaseParser):
                         site_id = re.search(r'gr=(\d+)', group_url)
                         site_id = site_id.group(1) if site_id else ''
 
-                        lessons = self._fetch_group_schedule(group_url)
+                        try:
+                            lessons = self._fetch_group_schedule(group_url)
+                        except Exception as e:
+                            # Одна упавшая группа не должна уносить прогон
+                            print(f"        {group_code}: ОШИБКА — {e}")
+                            self._note_failure(group_url, f"группа {group_code}: {e}")
+                            continue
+
                         print(f"        {group_code}: {len(lessons)} занятий")
 
-                        all_groups.append({
+                        group_data = {
                             'code': group_code,
                             'site_id': site_id,
                             'department': dept_name,
                             'program': prog_name,
                             'lessons': lessons,
-                        })
+                        }
+                        all_groups.append(group_data)
+
+                        if on_group:
+                            try:
+                                on_group(group_data)
+                            except Exception as e:
+                                print(f"        {group_code}: НЕ СОХРАНЕНО — {e}")
+                                self._note_failure(group_url, f"сохранение {group_code}: {e}")
 
         total = sum(len(g['lessons']) for g in all_groups)
         print(f"\n[socio] Итого: {len(all_groups)} групп, {total} занятий")
@@ -105,89 +125,61 @@ class SocioParser(BaseParser):
 
     # ======= Режим 2: Студенты + преподаватели =======
 
-    def parse_students(self, groups_info: list) -> dict:
+    def parse_students(self, groups_info: list, on_group=None, skip_group=None) -> dict:
         """
         Парсинг персональных расписаний.
         groups_info: [(group_id, code, site_id), ...] из БД.
+
+        on_group(group_id, students, teacher_updates) — вызывается после каждой
+        группы: сохраняем по ходу, а не 3349 запросов спустя.
+        skip_group(group_id, code) -> bool — пропустить уже собранную группу,
+        чтобы возобновить прогон после обрыва, а не начинать заново.
+
         Возвращает {'students': [...], 'teacher_updates': [...]}.
         """
         print(f"\n[socio] Парсинг студентов и преподавателей")
 
-        # Заходим в режим "Расписание студента"
-        self.download('/index.php?mnu=75', encoding=self.ENCODING)
+        # Режим "Расписание студента" критичен: без него страницы групп
+        # приходят без списков, и прогон молча соберёт ноль студентов.
+        self.download('/index.php?mnu=75', encoding=self.ENCODING, required=True)
 
         all_students = []
-        teacher_updates = []  # (group_id, date, pair, subject, teacher)
+        teacher_updates = []
+        skipped = 0
 
         for group_id, group_code, site_id in groups_info:
+            if skip_group and skip_group(group_id, group_code):
+                skipped += 1
+                print(f"\n  [{group_code}] уже собрана, пропускаю")
+                continue
+
             print(f"\n  [{group_code}] (gr={site_id})")
 
-            # Загружаем страницу группы в режиме студента → список студентов
-            group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
-            if not group_page:
+            try:
+                students, group_updates = self._parse_group_students(
+                    group_id, group_code, site_id)
+            except Exception as e:
+                # Упавшая группа не уносит прогон целиком
+                print(f"    ОШИБКА группы {group_code}: {e}")
+                self._note_failure(f'/index.php?gr={site_id}', f"группа {group_code}: {e}")
                 continue
 
-            students = self._find_students(group_page)
             if not students:
-                print(f"    студентов не найдено, пробуем через mnu=75")
-                # Повторно заходим в студенческий режим
-                self.download('/index.php?mnu=75', encoding=self.ENCODING)
-                group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
-                if group_page:
-                    students = self._find_students(group_page)
-
-            if not students:
-                print(f"    студентов не найдено, пропускаю")
                 continue
 
-            print(f"    студентов: {len(students)}")
-
-            # Сохраняем список студентов
-            for s in students:
-                s['group_id'] = group_id
-                s['group_code'] = group_code
             all_students.extend(students)
+            teacher_updates.extend(group_updates)
 
-            # Парсим расписание каждого студента
-            seen_teachers = {}  # (date, pair, subject) → teacher
-            for i, student in enumerate(students):
-                selst_id = student['site_id']
-                short = student['short_name']
+            if on_group:
+                try:
+                    on_group(group_id, students, group_updates)
+                except Exception as e:
+                    print(f"    {group_code}: НЕ СОХРАНЕНО — {e}")
+                    self._note_failure(f'/index.php?gr={site_id}',
+                                       f"сохранение {group_code}: {e}")
 
-                # Выбираем студента (сессия)
-                self.download(f'/index.php?selst={selst_id}', encoding=self.ENCODING)
-
-                # Потом загружаем месяцы
-                lessons = []
-                for offset in [0, 1]:
-                    url = self._month_url_bare(offset)
-                    page = self.download(url, encoding=self.ENCODING)
-                    if page:
-                        lessons.extend(self._parse_page(page))
-                        
-                        # Сохраняем предметы этого студента
-                student_subjects = list(set(l['subject'] for l in lessons))
-                student['subjects'] = student_subjects
-
-                # Собираем преподавателей
-                new_teachers = 0
-                for l in lessons:
-                    if l['teacher']:
-                        key = (l['date'], l['pair_number'], l['subject'])
-                        if key not in seen_teachers:
-                            seen_teachers[key] = l['teacher']
-                            new_teachers += 1
-                            teacher_updates.append({
-                                'group_id': group_id,
-                                'date': l['date'],
-                                'pair_number': l['pair_number'],
-                                'subject': l['subject'],
-                                'teacher': l['teacher'],
-                            })
-
-                if (i + 1) % 5 == 0 or i == len(students) - 1:
-                    print(f"    {i+1}/{len(students)} студентов, "
-                          f"преподавателей найдено: {len(seen_teachers)}")
+        if skipped:
+            print(f"\n[socio] Пропущено уже собранных групп: {skipped}")
 
         print(f"\n[socio] Итого: {len(all_students)} студентов, "
               f"{len(teacher_updates)} связок преподаватель-занятие")
@@ -197,20 +189,95 @@ class SocioParser(BaseParser):
             'teacher_updates': teacher_updates,
         }
 
+    def _parse_group_students(self, group_id, group_code, site_id):
+        """Студенты одной группы: список, их предметы, связки преподаватель-занятие."""
+        group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
+        if not group_page:
+            return [], []
+
+        students = self._find_students(group_page)
+        if not students:
+            print(f"    студентов не найдено, пробуем через mnu=75")
+            self.download('/index.php?mnu=75', encoding=self.ENCODING)
+            group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
+            if group_page:
+                students = self._find_students(group_page)
+
+        if not students:
+            print(f"    студентов не найдено, пропускаю")
+            return [], []
+
+        print(f"    студентов: {len(students)}")
+
+        for s in students:
+            s['group_id'] = group_id
+            s['group_code'] = group_code
+            s['subjects'] = []
+
+        teacher_updates = []
+        seen_teachers = {}   # (date, pair, subject) -> teacher
+        failed = 0
+
+        for i, student in enumerate(students):
+            selst_id = student['site_id']
+
+            try:
+                # Выбираем студента (сессия), затем два месяца его расписания
+                self.download(f'/index.php?selst={selst_id}', encoding=self.ENCODING)
+
+                lessons = []
+                for offset in [0, 1]:
+                    page = self.download(self._month_url_bare(offset),
+                                         encoding=self.ENCODING)
+                    if page:
+                        lessons.extend(self._parse_page(page))
+            except Exception as e:
+                failed += 1
+                print(f"    студент {student.get('short_name', selst_id)}: ошибка {e}")
+                continue
+
+            student['subjects'] = sorted(set(l['subject'] for l in lessons))
+
+            for l in lessons:
+                if not l['teacher']:
+                    continue
+                key = (l['date'], l['pair_number'], l['subject'])
+                if key in seen_teachers:
+                    continue
+                seen_teachers[key] = l['teacher']
+                teacher_updates.append({
+                    'group_id': group_id,
+                    'date': l['date'],
+                    'pair_number': l['pair_number'],
+                    'subject': l['subject'],
+                    'teacher': l['teacher'],
+                })
+
+            if (i + 1) % 5 == 0 or i == len(students) - 1:
+                print(f"    {i+1}/{len(students)} студентов, "
+                      f"преподавателей найдено: {len(seen_teachers)}")
+
+        if failed:
+            print(f"    не удалось собрать расписание у {failed} студентов из {len(students)}")
+
+        return students, teacher_updates
+
     # ======= Режим 3: Преподаватели через кафедры =======
 
-    def parse_teachers(self, group_code_to_id: dict) -> dict:
+    def parse_teachers(self, group_code_to_id: dict, on_teacher=None) -> dict:
         """
         Парсинг расписаний преподавателей через кафедры.
         group_code_to_id: {'с203': 5, 'с401': 12, ...} — маппинг кода группы на ID в БД.
+
+        on_teacher(updates) — вызывается после каждого преподавателя,
+        чтобы обрыв на 500-м из 586 не обнулял предыдущих.
+
         Возвращает {'teacher_updates': [...], 'teachers_found': int}.
         """
         print(f"\n[socio] Парсинг преподавателей через кафедры")
 
-        # Заходим в режим расписания преподавателей
-        page = self.download('/index.php?mnu=56', encoding=self.ENCODING)
-        if not page:
-            return {'teacher_updates': [], 'teachers_found': 0}
+        # Режим расписания преподавателей критичен: без него нет кафедр.
+        page = self.download('/index.php?mnu=56', encoding=self.ENCODING, required=True)
 
         # Собираем кафедры
         chairs = self._find_chairs(page)
@@ -236,33 +303,55 @@ class SocioParser(BaseParser):
         # Парсим расписание каждого преподавателя
         teacher_updates = []
 
+        failed = 0
+
         for idx, (prr_id, (full_name, short_name)) in enumerate(all_teachers.items()):
-            # Выбираем преподавателя (сессия)
-            self.download(f'/index.php?prr={prr_id}', encoding=self.ENCODING)
+            own_updates = []
+            try:
+                # Выбираем преподавателя (сессия)
+                self.download(f'/index.php?prr={prr_id}', encoding=self.ENCODING)
 
-            # Загружаем 2 месяца
-            for offset in [0, 1]:
-                url = self._month_url_bare(offset)
-                page = self.download(url, encoding=self.ENCODING)
-                if not page:
-                    continue
+                # Загружаем 2 месяца
+                for offset in [0, 1]:
+                    url = self._month_url_bare(offset)
+                    page = self.download(url, encoding=self.ENCODING)
+                    if not page:
+                        continue
 
-                lessons = self._parse_teacher_page(page, short_name)
-                for l in lessons:
-                    # Сопоставляем код группы с ID в базе
-                    for group_code in l['group_codes']:
-                        group_id = group_code_to_id.get(group_code)
-                        if group_id:
-                            teacher_updates.append({
-                                'group_id': group_id,
-                                'date': l['date'],
-                                'pair_number': l['pair_number'],
-                                'subject': l['subject'],
-                                'teacher': short_name,
-                            })
+                    lessons = self._parse_teacher_page(page, short_name)
+                    for l in lessons:
+                        # Сопоставляем код группы с ID в базе
+                        for group_code in l['group_codes']:
+                            group_id = group_code_to_id.get(group_code)
+                            if group_id:
+                                own_updates.append({
+                                    'group_id': group_id,
+                                    'date': l['date'],
+                                    'pair_number': l['pair_number'],
+                                    'subject': l['subject'],
+                                    'teacher': short_name,
+                                })
+            except Exception as e:
+                failed += 1
+                print(f"  преподаватель {short_name}: ошибка — {e}")
+                self._note_failure(f'/index.php?prr={prr_id}', f"{short_name}: {e}")
+                continue
+
+            teacher_updates.extend(own_updates)
+
+            if on_teacher and own_updates:
+                try:
+                    on_teacher(own_updates)
+                except Exception as e:
+                    print(f"  {short_name}: НЕ СОХРАНЕНО — {e}")
+                    self._note_failure(f'/index.php?prr={prr_id}',
+                                       f"сохранение {short_name}: {e}")
 
             if (idx + 1) % 10 == 0 or idx == len(all_teachers) - 1:
                 print(f"  {idx+1}/{len(all_teachers)} преподов, обновлений: {len(teacher_updates)}")
+
+        if failed:
+            print(f"[socio] Не удалось обработать преподавателей: {failed}")
 
         print(f"\n[socio] Итого: {len(all_teachers)} преподавателей, "
               f"{len(teacher_updates)} обновлений занятий")
@@ -334,6 +423,7 @@ class SocioParser(BaseParser):
                     # Извлекаем предмет
                     m = self.TITLE_RE.match(title)
                     if not m:
+                        self._note_unparsed(title, iso_date, pair)
                         continue
                     subject = m.group(2)
 
@@ -473,6 +563,10 @@ class SocioParser(BaseParser):
                     parsed = self._parse_lesson(div, iso_date, pair, t_start, t_end)
                     if parsed:
                         lessons.append(parsed)
+                    else:
+                        # Раньше такой блок исчезал молча — главный канал
+                        # незаметной потери данных на этом сайте
+                        self._note_unparsed(div.get('title', ''), iso_date, pair)
 
         return lessons
 
