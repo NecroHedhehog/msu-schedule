@@ -43,6 +43,26 @@ def save_students(conn, group_id: int, students: list):
     conn.commit()
 
 
+def group_subject_coverage(conn, group_id: int) -> tuple:
+    """
+    (студентов в группе, из них с собранными предметами).
+    Нужно для --resume: не переспрашивать сайт про уже собранные группы.
+    """
+    total = conn.execute(
+        "SELECT COUNT(*) AS c FROM students WHERE group_id = ?", (group_id,)
+    ).fetchone()['c']
+    try:
+        with_subjects = conn.execute(
+            """SELECT COUNT(DISTINCT s.id) AS c FROM students s
+               JOIN student_subjects ss ON ss.student_id = s.id
+               WHERE s.group_id = ?""",
+            (group_id,)
+        ).fetchone()['c']
+    except Exception:
+        with_subjects = 0
+    return total, with_subjects
+
+
 def update_lesson_teachers(conn, teacher_updates: list) -> int:
     """Обновить teacher в занятиях. Возвращает кол-во обновлённых строк."""
     updated = 0

@@ -2,7 +2,7 @@
 
 import sqlite3
 from pathlib import Path
-from core.config import DB_PATH
+from core.config import DB_PATH, SHRINK_GUARD_RATIO
 
 
 def get_connection() -> sqlite3.Connection:
@@ -149,14 +149,44 @@ def get_or_create_group(conn, faculty_id: int, code: str,
     return cursor.lastrowid
 
 
-def save_lessons(conn, group_id: int, lessons: list[dict]):
+def count_lessons(conn, group_id: int) -> int:
+    """Сколько занятий уже лежит у группы."""
+    return conn.execute(
+        "SELECT COUNT(*) AS c FROM lessons WHERE group_id = ?", (group_id,)
+    ).fetchone()['c']
+
+
+def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = True) -> dict:
+    """
+    Записать занятия группы за пришедшие даты.
+
+    shrink_guard: если сайт икнул и отдал огрызок (сильно меньше того, что уже
+    лежит в базе за те же даты) — ничего не трогаем и говорим об этом наверх.
+    Иначе один плохой ответ стирает нормальное расписание.
+
+    Возвращает {'written': int, 'skipped': bool, 'reason': str}.
+    """
     if not lessons:
-        return
-    dates = set(l['date'] for l in lessons)
+        return {'written': 0, 'skipped': False, 'reason': 'нет занятий'}
+
+    dates = sorted(set(l['date'] for l in lessons))
     placeholders = ','.join('?' for _ in dates)
+
+    existing = conn.execute(
+        f"SELECT COUNT(*) AS c FROM lessons WHERE group_id = ? AND date IN ({placeholders})",
+        [group_id] + dates
+    ).fetchone()['c']
+
+    if shrink_guard and existing and len(lessons) < existing * SHRINK_GUARD_RATIO:
+        return {
+            'written': 0,
+            'skipped': True,
+            'reason': f"пришло {len(lessons)} занятий против {existing} в базе за те же даты",
+        }
+
     conn.execute(
         f"DELETE FROM lessons WHERE group_id = ? AND date IN ({placeholders})",
-        [group_id] + list(dates)
+        [group_id] + dates
     )
     conn.executemany(
         """INSERT INTO lessons
@@ -171,6 +201,7 @@ def save_lessons(conn, group_id: int, lessons: list[dict]):
         ]
     )
     conn.commit()
+    return {'written': len(lessons), 'skipped': False, 'reason': ''}
 
 
 def log_parse(conn, faculty_code, status, lessons_count=0, groups_count=0, message=''):
