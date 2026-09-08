@@ -10,8 +10,19 @@ def get_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    _register_functions(conn)
     _create_tables(conn)
     return conn
+
+
+def _register_functions(conn: sqlite3.Connection):
+    """
+    Встроенный LOWER() в SQLite работает только с ASCII: lower('ИВАНОВА')
+    возвращает 'ИВАНОВА'. Из-за этого LIKE по кириллице оказывался
+    регистрозависимым, и поиск по фамилии с маленькой буквы не находил никого.
+    Питоновский str.lower() кириллицу понимает.
+    """
+    conn.create_function('pylower', 1, lambda v: v.lower() if v else v)
 
 
 def _create_tables(conn: sqlite3.Connection):
@@ -237,6 +248,22 @@ def get_date_range(conn, group_id: int) -> tuple:
     if row and row['min_d']:
         return row['min_d'], row['max_d']
     return None, None
+
+
+def find_groups_by_code(conn, query: str, limit: int = 20) -> list:
+    """
+    Поиск групп по фрагменту кода, без учёта регистра.
+    Голый вариант «403» ищется ещё и как «с403» — так его обычно и пишут.
+    """
+    query = query.strip().lower()
+    with_prefix = 'с' + query if query.isdigit() else query
+    return conn.execute(
+        """SELECT g.id, g.code, g.department, g.program, f.name AS faculty_name
+             FROM groups_ g JOIN faculties f ON g.faculty_id = f.id
+            WHERE pylower(g.code) LIKE ? OR pylower(g.code) LIKE ?
+            ORDER BY g.code LIMIT ?""",
+        (f'%{query}%', f'%{with_prefix}%', limit)
+    ).fetchall()
 
 
 # === Бот: пользователь и группа ===

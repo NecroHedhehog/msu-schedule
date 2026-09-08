@@ -18,6 +18,9 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
 )
 from aiogram.enums import ParseMode
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from core.config import BOT_TOKEN, ADMIN_CHAT_ID, AD_FULL_TEXT, AD_BUTTON_LABEL
 from core.database import (
@@ -27,10 +30,29 @@ from core.database import (
     track_user, log_action, get_stats,
 )
 from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
-from core.db_students import get_students_by_name, bind_student, get_bound_student, apply_student_filter
+from core.database import find_groups_by_code
+from core.db_students import (
+    get_students_by_name, find_teachers_by_name,
+    bind_student, get_bound_student, apply_student_filter,
+)
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
+
+
+class Search(StatesGroup):
+    """
+    Что именно бот сейчас ждёт текстом.
+
+    Раньше состояния не было вовсе, и все три кнопки — «найди себя по
+    фамилии», «напиши фамилию преподавателя», «введи номер группы» — вели
+    в один обработчик, который угадывал намерение по заглавной букве.
+    Из-за этого поиск преподавателя перехватывался поиском студента:
+    27% преподавателей были недостижимы, потому что находился однофамилец.
+    """
+    group = State()      # ждём номер группы
+    student = State()    # ждём фамилию студента
+    teacher = State()    # ждём фамилию преподавателя
 
 
 # === Клавиатура ===
@@ -48,6 +70,14 @@ def build_main_keyboard():
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 MAIN_KEYBOARD = build_main_keyboard()
+
+# Тексты кнопок нижней клавиатуры: их не надо принимать за поисковый запрос
+MAIN_BUTTON_TEXTS = {
+    "📅 Сегодня", "📆 Завтра", "🗓 Неделя",
+    "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель",
+}
+if AD_BUTTON_LABEL:
+    MAIN_BUTTON_TEXTS.add(AD_BUTTON_LABEL)
 
 
 # === Утилиты ===
@@ -81,21 +111,30 @@ def filter_lessons(lessons: list, user_subjects: list[str]) -> list:
     return [l for l in lessons if l['subject'] in user_subjects]
 
 
-def get_schedule_for_date(group_id: int, d: date, chat_id: int) -> list:
+def get_schedule_for_date(group_id: int, d: date, chat_id: int) -> tuple:
+    """
+    (занятия, диапазон дат группы).
+
+    Диапазон нужен, чтобы отличить «в этот день пар нет» от «расписания
+    на этот день ещё не выложили» — снаружи это выглядело одинаково.
+    """
     conn = get_connection()
     lessons = get_lessons_for_date(conn, group_id, d.strftime('%Y-%m-%d'))
     user_subj = get_user_subjects(conn, chat_id, group_id)
+    data_range = get_date_range(conn, group_id)
     conn.close()
-    return filter_lessons(lessons, user_subj)
+    return filter_lessons(lessons, user_subj), data_range
 
 
-def get_week_days(group_id: int, monday: date, chat_id: int) -> dict:
+def get_week_days(group_id: int, monday: date, chat_id: int) -> tuple:
+    """(дни недели -> занятия, диапазон дат группы)."""
     sunday = monday + timedelta(days=6)
     conn = get_connection()
     all_lessons = get_lessons_for_week(
         conn, group_id, monday.strftime('%Y-%m-%d'), sunday.strftime('%Y-%m-%d'),
     )
     user_subj = get_user_subjects(conn, chat_id, group_id)
+    data_range = get_date_range(conn, group_id)
     conn.close()
 
     filtered = filter_lessons(all_lessons, user_subj)
@@ -109,7 +148,7 @@ def get_week_days(group_id: int, monday: date, chat_id: int) -> dict:
         if d not in days:
             days[d] = []
 
-    return dict(days)
+    return dict(days), data_range
 
 
 # === Трекинг ===
@@ -215,7 +254,8 @@ async def check_group(message_or_callback) -> dict | None:
 # === /start ===
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+    await state.clear()
     do_track(message, 'start')
 
     conn = get_connection()
@@ -267,23 +307,26 @@ async def show_department_selection(message: Message):
 
 
 @router.callback_query(F.data == 'manual_input')
-async def on_manual_input(callback: CallbackQuery):
+async def on_manual_input(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Search.group)
     await callback.message.edit_text(
         "Напиши номер группы, например:\n<b>с403</b>, <b>403</b>, <b>пп201</b>, <b>мг52МКПП</b>",
         parse_mode=ParseMode.HTML)
     await callback.answer()
 
 @router.callback_query(F.data == 'find_by_name')
-async def on_find_by_name(callback: CallbackQuery):
+async def on_find_by_name(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Search.student)
     await callback.message.edit_text(
-        "🔍 Напиши фамилию (минимум 2 буквы):",
+        "🔍 Напиши свою фамилию (минимум 2 буквы):",
         parse_mode=ParseMode.HTML,
     )
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith('bind:'))
-async def on_bind_student(callback: CallbackQuery):
+async def on_bind_student(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     student_id = int(callback.data.split(':')[1])
 
     conn = get_connection()
@@ -419,7 +462,8 @@ async def on_course_select(callback: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith('grp:'))
-async def on_group_select(callback: CallbackQuery):
+async def on_group_select(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     group_id = int(callback.data.split(':')[1])
     conn = get_connection()
     set_user_group(conn, callback.message.chat.id, group_id)
@@ -449,17 +493,18 @@ async def on_group_select(callback: CallbackQuery):
 
 @router.message(F.text == "📅 Сегодня")
 @router.message(Command('сегодня', 'today'))
-async def cmd_today(message: Message):
+async def cmd_today(message: Message, state: FSMContext):
+    await state.clear()
     user = await check_group(message)
     if not user:
         return
     do_track(message, 'today')
 
     d = date.today()
-    lessons = get_schedule_for_date(user['group_id'], d, message.chat.id)
+    lessons, data_range = get_schedule_for_date(user['group_id'], d, message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d)
+    text += format_day_schedule(lessons, d, data_range=data_range)
 
     if d.weekday() >= 5 and not lessons:
         text += "\n\nНажми <b>🗓 Неделя</b> — покажу следующую."
@@ -469,24 +514,26 @@ async def cmd_today(message: Message):
 
 @router.message(F.text == "📆 Завтра")
 @router.message(Command('завтра', 'tomorrow'))
-async def cmd_tomorrow(message: Message):
+async def cmd_tomorrow(message: Message, state: FSMContext):
+    await state.clear()
     user = await check_group(message)
     if not user:
         return
     do_track(message, 'tomorrow')
 
     d = date.today() + timedelta(days=1)
-    lessons = get_schedule_for_date(user['group_id'], d, message.chat.id)
+    lessons, data_range = get_schedule_for_date(user['group_id'], d, message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d)
+    text += format_day_schedule(lessons, d, data_range=data_range)
 
     await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 
 
 @router.message(F.text == "🗓 Неделя")
 @router.message(Command('неделя', 'week'))
-async def cmd_week(message: Message):
+async def cmd_week(message: Message, state: FSMContext):
+    await state.clear()
     user = await check_group(message)
     if not user:
         return
@@ -506,7 +553,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
     else:
         chat_id = message_or_callback.chat.id
 
-    days = get_week_days(user['group_id'], monday, chat_id)
+    days, data_range = get_week_days(user['group_id'], monday, chat_id)
     sunday = monday + timedelta(days=6)
 
     header = (
@@ -514,7 +561,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
         f"📅 Неделя: {monday.strftime('%d.%m')} — {sunday.strftime('%d.%m')}\n\n"
     )
 
-    text = header + format_week_schedule(days)
+    text = header + format_week_schedule(days, data_range)
     keyboard = week_nav_keyboard(monday, user['group_id'])
 
     if len(text) > 4000:
@@ -530,7 +577,8 @@ async def send_week(message_or_callback, user: dict, monday: date):
 
         for d in sorted(days.keys()):
             if d.weekday() < 6:
-                await send(format_day_schedule(days[d], d), parse_mode=ParseMode.HTML)
+                await send(format_day_schedule(days[d], d, data_range=data_range),
+                           parse_mode=ParseMode.HTML)
         await send("Навигация:", reply_markup=keyboard)
     else:
         if isinstance(message_or_callback, CallbackQuery):
@@ -559,10 +607,10 @@ async def on_day_navigate(callback: CallbackQuery):
         return
     date_str = callback.data.split(':')[1]
     d = datetime.strptime(date_str, '%Y-%m-%d').date()
-    lessons = get_schedule_for_date(user['group_id'], d, callback.message.chat.id)
+    lessons, data_range = get_schedule_for_date(user['group_id'], d, callback.message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d)
+    text += format_day_schedule(lessons, d, data_range=data_range)
 
     await callback.message.edit_text(
         text, parse_mode=ParseMode.HTML, reply_markup=day_nav_keyboard(d))
@@ -573,7 +621,8 @@ async def on_day_navigate(callback: CallbackQuery):
 
 @router.message(F.text == "📋 Предметы")
 @router.message(Command('предметы', 'subjects'))
-async def cmd_subjects(message: Message):
+async def cmd_subjects(message: Message, state: FSMContext):
+    await state.clear()
     user = await check_group(message)
     if not user:
         return
@@ -671,7 +720,8 @@ async def on_subject_toggle(callback: CallbackQuery):
 # === Реклама / Полезное ===
 
 @router.message(F.text == AD_BUTTON_LABEL)
-async def cmd_ad(message: Message):
+async def cmd_ad(message: Message, state: FSMContext):
+    await state.clear()
     if not AD_FULL_TEXT:
         return
     do_track(message, 'ad_click')
@@ -681,7 +731,8 @@ async def cmd_ad(message: Message):
 # === Статистика (только для админа) ===
 
 @router.message(Command('stats'))
-async def cmd_stats(message: Message):
+async def cmd_stats(message: Message, state: FSMContext):
+    await state.clear()
     if str(message.chat.id) != str(ADMIN_CHAT_ID):
         return
 
@@ -703,7 +754,8 @@ async def cmd_stats(message: Message):
 # === Расписание преподавателя ===
 
 @router.message(F.text == "👨‍🏫 Преподаватель")
-async def cmd_teacher_start(message: Message):
+async def cmd_teacher_start(message: Message, state: FSMContext):
+    await state.set_state(Search.teacher)
     do_track(message, 'teacher_search')
     await message.answer(
         "👨‍🏫 Напиши фамилию преподавателя (или первые буквы):",
@@ -781,13 +833,15 @@ async def on_teacher_select(callback: CallbackQuery):
 
 @router.message(F.text == "👥 Сменить группу")
 @router.message(Command('группа', 'group'))
-async def cmd_change_group(message: Message):
+async def cmd_change_group(message: Message, state: FSMContext):
+    await state.clear()
     do_track(message, 'change_group')
     await show_department_selection(message)
 
 
 @router.message(Command('помощь', 'help'))
-async def cmd_help(message: Message):
+async def cmd_help(message: Message, state: FSMContext):
+    await state.clear()
     do_track(message, 'help')
     await message.answer(
         "📌 <b>Как пользоваться:</b>\n\n"
@@ -801,84 +855,64 @@ async def cmd_help(message: Message):
         parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 
 
-# === Текстовый поиск группы ===
+# === Поиск: студент, преподаватель, группа ===
+#
+# Три поиска разведены состояниями (Search). Пока состояния не было, все они
+# жили в одном обработчике и различались угадыванием по заглавной букве:
+# сначала искался студент и при находке делался return, поэтому поиск
+# преподавателя перехватывался однофамильцами-студентами.
 
-@router.message(F.text & ~F.text.startswith('/'))
-async def on_text_message(message: Message):
-    text = message.text.strip()
 
-    if text in ("📅 Сегодня", "📆 Завтра", "🗓 Неделя",
-                "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель", AD_BUTTON_LABEL):
-        return
-            # Поиск студента — если текст с заглавной, >= 3 букв, нет цифр
-    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
-        conn = get_connection()
-        found = get_students_by_name(conn, text)
-        conn.close()
-
-        if found:
-            buttons = [[InlineKeyboardButton(
-                text=f"{s['full_name']} ({s['group_code']})",
-                callback_data=f"bind:{s['id']}",
-            )] for s in found]
-
-            await message.answer(
-                f"👤 Найдено: {len(found)}",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            )
-            return
-            
-            # Поиск преподавателя — если текст похож на фамилию (начинается с заглавной, нет цифр)
-    if len(text) >= 2 and text[0].isupper() and not any(c.isdigit() for c in text):
-        conn = get_connection()
-        rows = conn.execute(
-            """SELECT DISTINCT teacher FROM lessons
-               WHERE teacher LIKE ? AND teacher != ''
-               ORDER BY teacher LIMIT 50""",
-            (f'%{text}%',)
-        ).fetchall()
-        conn.close()
-
-        if rows:
-            # Разбиваем "Осипова Н.Г., Елишев С.О." на отдельных
-            seen = set()
-            individual = []
-            for r in rows:
-                for name in r['teacher'].split(', '):
-                    name = name.strip()
-                    if name and text.lower() in name.lower() and name not in seen:
-                        seen.add(name)
-                        individual.append(name)
-
-            individual.sort()
-            buttons = [[InlineKeyboardButton(
-                text=name, callback_data=f"tch:{name}"
-            )] for name in individual[:10]]
-
-            await message.answer(
-                f"👨‍🏫 Найдено преподавателей: {len(individual)}",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
-            )
-            return
-            
-    query = normalize_group_query(text)
-    query_with_prefix = 'с' + query if query.isdigit() else query
-
+async def reply_students(message: Message, query: str) -> bool:
+    """Показать найденных студентов. True, если кто-то нашёлся."""
     conn = get_connection()
-    rows = conn.execute(
-        """SELECT g.id, g.code, g.department, g.program, f.name as faculty_name
-           FROM groups_ g JOIN faculties f ON g.faculty_id = f.id
-           WHERE LOWER(g.code) LIKE ? OR LOWER(g.code) LIKE ?
-           ORDER BY g.code LIMIT 20""",
-        (f'%{query}%', f'%{query_with_prefix}%')
-    ).fetchall()
+    found = get_students_by_name(conn, query)
+    conn.close()
+
+    if not found:
+        return False
+
+    buttons = [[InlineKeyboardButton(
+        text=f"{s['full_name']} ({s['group_code']})",
+        callback_data=f"bind:{s['id']}",
+    )] for s in found]
+
+    await message.answer(
+        f"👤 Найдено студентов: {len(found)}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    return True
+
+
+async def reply_teachers(message: Message, query: str) -> bool:
+    """Показать найденных преподавателей. True, если кто-то нашёлся."""
+    conn = get_connection()
+    names = find_teachers_by_name(conn, query)
+    conn.close()
+
+    if not names:
+        return False
+
+    buttons = [[InlineKeyboardButton(text=name, callback_data=f"tch:{name}")]
+               for name in names]
+    await message.answer(
+        f"👨‍🏫 Найдено преподавателей: {len(names)}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+    )
+    return True
+
+
+async def reply_groups(message: Message, query: str) -> bool:
+    """
+    Показать найденные группы. Единственное совпадение выбирается сразу.
+    True, если что-то нашлось.
+    """
+    conn = get_connection()
+    rows = find_groups_by_code(conn, normalize_group_query(query))
     conn.close()
 
     if not rows:
-        await message.answer(
-            f"🔍 Группа «{text}» не найдена.\nПопробуй <b>👥 Сменить группу</b>.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
-        return
+        return False
 
     if len(rows) == 1:
         conn = get_connection()
@@ -887,15 +921,134 @@ async def on_text_message(message: Message):
         conn.close()
         do_track(message, 'set_group', user['group_code'])
         await message.answer(
-            f"✅ Группа: <b>{user['group_code']}</b>\n   {user['faculty_name']}, {user['department']}",
+            f"✅ Группа: <b>{user['group_code']}</b>\n"
+            f"   {user['faculty_name']}, {user['department']}",
             parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
-        return
+        return True
 
     buttons = [[InlineKeyboardButton(
         text=f"{g['code']} ({g['department']}, {g['program']})",
         callback_data=f"grp:{g['id']}")] for g in rows]
-    await message.answer(f"🔍 Найдено {len(rows)} групп:",
+    await message.answer(f"🔍 Найдено групп: {len(rows)}",
                          reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    return True
+
+
+async def handled_as_group_code(message: Message, state: FSMContext, text: str) -> bool:
+    """
+    Цифра в запросе однозначно означает код группы: фамилий с цифрами не бывает,
+    а код группы без цифр — не встречается.
+
+    Нужно потому, что режим поиска студента снимается только при выборе
+    человека из списка. Написал «Найти себя по фамилии», никого не нашёл,
+    потом набрал «403» — и без этой ветки номер группы ушёл бы в поиск
+    студента и вернул «не нашлась».
+    """
+    if not any(c.isdigit() for c in text):
+        return False
+
+    do_track(message, 'group_query', text)
+    if await reply_groups(message, text):
+        await state.clear()
+    else:
+        await message.answer(
+            f"🔍 Группа «{text}» не найдена.\nПопробуй <b>👥 Сменить группу</b>.",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+    return True
+
+
+@router.message(Search.teacher, F.text & ~F.text.startswith('/'))
+async def on_teacher_query(message: Message, state: FSMContext):
+    """Ждём фамилию преподавателя — и ищем только преподавателя."""
+    text = message.text.strip()
+    if text in MAIN_BUTTON_TEXTS:
+        return
+    if await handled_as_group_code(message, state, text):
+        return
+    if len(text) < 2:
+        await message.answer("Нужно хотя бы две буквы фамилии.")
+        return
+
+    do_track(message, 'teacher_query', text)
+    if not await reply_teachers(message, text):
+        await message.answer(
+            f"👨‍🏫 Преподаватель «{text}» не найден.\n"
+            f"Проверь написание или напиши только фамилию.",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+
+
+@router.message(Search.student, F.text & ~F.text.startswith('/'))
+async def on_student_query(message: Message, state: FSMContext):
+    """Ждём фамилию студента — и ищем только студента."""
+    text = message.text.strip()
+    if text in MAIN_BUTTON_TEXTS:
+        return
+    if await handled_as_group_code(message, state, text):
+        return
+    if len(text) < 2:
+        await message.answer("Нужно хотя бы две буквы фамилии.")
+        return
+
+    do_track(message, 'student_query', text)
+    if not await reply_students(message, text):
+        await message.answer(
+            f"👤 «{text}» в списках не нашлась.\n"
+            f"Списки студентов собираются отдельно от расписания и бывают "
+            f"неполными — выбери группу через <b>👥 Сменить группу</b>.",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+
+
+@router.message(Search.group, F.text & ~F.text.startswith('/'))
+async def on_group_query(message: Message, state: FSMContext):
+    """Ждём номер группы — и ищем только группу."""
+    text = message.text.strip()
+    if text in MAIN_BUTTON_TEXTS:
+        return
+
+    do_track(message, 'group_query', text)
+    if await reply_groups(message, text):
+        await state.clear()
+    else:
+        await message.answer(
+            f"🔍 Группа «{text}» не найдена. Попробуй ещё раз или нажми "
+            f"<b>👥 Сменить группу</b>.",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+
+
+@router.message(F.text & ~F.text.startswith('/'))
+async def on_text_message(message: Message, state: FSMContext):
+    """
+    Текст без состояния: человек пишет боту сам, не после нажатия кнопки.
+
+    Различаем не по регистру, а по содержимому: код группы всегда содержит
+    цифру, фамилия — никогда. Если цифр нет, ищем и студентов, и
+    преподавателей, и показываем обоих — вместо того чтобы угадывать,
+    кого человек имел в виду, и молча съедать вторую половину ответа.
+    """
+    text = message.text.strip()
+    if text in MAIN_BUTTON_TEXTS or len(text) < 2:
+        return
+
+    if any(c.isdigit() for c in text):
+        do_track(message, 'group_query', text)
+        if not await reply_groups(message, text):
+            await message.answer(
+                f"🔍 Группа «{text}» не найдена.\n"
+                f"Попробуй <b>👥 Сменить группу</b>.",
+                parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+        return
+
+    do_track(message, 'name_query', text)
+    found_students = await reply_students(message, text)
+    found_teachers = await reply_teachers(message, text)
+
+    if not found_students and not found_teachers:
+        await message.answer(
+            f"🔍 По запросу «{text}» ничего не нашлось.\n\n"
+            f"Номер группы можно написать прямо так: <b>403</b>, <b>с403</b>, <b>пп201</b>.\n"
+            f"Преподавателя — через <b>👨‍🏫 Преподаватель</b>.\n"
+            f"Себя — через <b>👥 Сменить группу</b> → «Найти себя по фамилии».",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 
 
 # === Запуск ===
@@ -906,7 +1059,9 @@ async def main():
         return
 
     bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
+    # Состояния держим в памяти: они живут секунды (ввод фамилии) и
+    # переживать перезапуск им незачем
+    dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
     print("[bot] Started. Press Ctrl+C to stop.")

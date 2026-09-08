@@ -46,10 +46,33 @@ def format_lesson(lesson) -> str:
     return line1
 
 
-def format_day_schedule(lessons: list, d: date, with_ad: bool = True) -> str:
+def empty_day_reason(d: date, data_range: tuple = None) -> str:
+    """
+    Почему в этом дне пусто. Раньше выходной, каникулы и «парсер сюда
+    не доходил» выглядели одинаково — праздничным «Нет занятий».
+
+    data_range: (min_date, max_date) из get_date_range(), ISO-строки.
+    """
+    min_d, max_d = data_range or (None, None)
+
+    if min_d and max_d:
+        first = date.fromisoformat(min_d)
+        last = date.fromisoformat(max_d)
+        if d > last:
+            return "📭 Расписание на этот день ещё не выложено."
+        if d < first:
+            return "📭 Данных за этот день нет."
+
+    if d.weekday() == 6:
+        return "🎉 Воскресенье, занятий нет."
+    return "🎉 Нет занятий!"
+
+
+def format_day_schedule(lessons: list, d: date, with_ad: bool = True,
+                        data_range: tuple = None) -> str:
     header = format_date_header(d)
     if not lessons:
-        text = f"{header}\n  🎉 Нет занятий!"
+        text = f"{header}\n  {empty_day_reason(d, data_range)}"
     else:
         lines = [header]
         for l in lessons:
@@ -62,13 +85,18 @@ def format_day_schedule(lessons: list, d: date, with_ad: bool = True) -> str:
     return text
 
 
-def format_week_schedule(days: dict) -> str:
+def format_week_schedule(days: dict, data_range: tuple = None) -> str:
     if not any(days.values()):
+        week = sorted(days.keys())
+        if week and data_range and data_range[1]:
+            if week[0] > date.fromisoformat(data_range[1]):
+                return "📭 Расписание на эту неделю ещё не выложено"
         return "📭 На эту неделю занятий нет"
     parts = []
     for d in sorted(days.keys()):
         if d.weekday() < 6:
-            parts.append(format_day_schedule(days[d], d, with_ad=False))
+            parts.append(format_day_schedule(days[d], d, with_ad=False,
+                                             data_range=data_range))
     text = '\n\n'.join(parts)
 
     if AD_TEASER:

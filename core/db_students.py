@@ -121,24 +121,61 @@ def fill_teachers_from_same_subject(conn) -> int:
     conn.commit()
     return cursor.rowcount
 
-def get_students_by_name(conn, query: str, group_id: int = None) -> list:
-    """Поиск студентов по началу фамилии."""
+def get_students_by_name(conn, query: str, group_id: int = None, limit: int = 10) -> list:
+    """
+    Поиск студентов по началу фамилии, без учёта регистра.
+    pylower обязателен: встроенный LOWER() кириллицу не трогает, и «иванова»
+    не находила «Иванову».
+    """
+    pattern = f'{query.strip().lower()}%'
     if group_id:
         return conn.execute(
             """SELECT s.*, g.code as group_code FROM students s
                JOIN groups_ g ON s.group_id = g.id
-               WHERE s.full_name LIKE ? AND s.group_id = ?
-               ORDER BY s.full_name LIMIT 10""",
-            (f'{query}%', group_id)
+               WHERE pylower(s.full_name) LIKE ? AND s.group_id = ?
+               ORDER BY s.full_name LIMIT ?""",
+            (pattern, group_id, limit)
         ).fetchall()
-    else:
-        return conn.execute(
-            """SELECT s.*, g.code as group_code FROM students s
-               JOIN groups_ g ON s.group_id = g.id
-               WHERE s.full_name LIKE ?
-               ORDER BY s.full_name LIMIT 10""",
-            (f'{query}%',)
-        ).fetchall()
+    return conn.execute(
+        """SELECT s.*, g.code as group_code FROM students s
+           JOIN groups_ g ON s.group_id = g.id
+           WHERE pylower(s.full_name) LIKE ?
+           ORDER BY s.full_name LIMIT ?""",
+        (pattern, limit)
+    ).fetchall()
+
+
+def find_teachers_by_name(conn, query: str, limit: int = 10) -> list:
+    """
+    Поиск преподавателей по фрагменту фамилии, без учёта регистра.
+
+    В lessons.teacher может лежать несколько человек через запятую
+    («Осипова Н.Г., Елишев С.О.»), поэтому строки разбираются на отдельные
+    имена, и в выдачу попадают только те, что действительно совпали.
+    """
+    q = query.strip().lower()
+    if not q:
+        return []
+
+    rows = conn.execute(
+        """SELECT DISTINCT teacher FROM lessons
+            WHERE teacher IS NOT NULL AND teacher != ''
+              AND pylower(teacher) LIKE ?
+            ORDER BY teacher""",
+        (f'%{q}%',)
+    ).fetchall()
+
+    seen = set()
+    names = []
+    for r in rows:
+        for name in r['teacher'].split(','):
+            name = name.strip()
+            if name and q in name.lower() and name not in seen:
+                seen.add(name)
+                names.append(name)
+
+    names.sort()
+    return names[:limit]
 
 
 def bind_student(conn, chat_id: int, student_id: int):
