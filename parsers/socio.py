@@ -11,7 +11,7 @@ from datetime import datetime, date
 from bs4 import BeautifulSoup
 
 from parsers.base import BaseParser
-from core.config import PAIR_TIMES, PAIR_TIMES_WED_MFK
+from core.config import PAIR_TIMES, PAIR_TIMES_WED_MFK, SKIP_SUBGROUP_SUBJECTS
 
 
 class SocioParser(BaseParser):
@@ -296,6 +296,7 @@ class SocioParser(BaseParser):
         groups_with_subgroups = 0
         total_subgroups = 0
         total_lessons = 0
+        skipped_foreign = 0
 
         for group_id, group_code, site_id in groups_info:
             group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
@@ -325,6 +326,13 @@ class SocioParser(BaseParser):
                                        f"подгруппа {sg['label']}: {e}")
                     continue
 
+                foreign = self.foreign_stream_subject(lessons)
+                if foreign:
+                    skipped_foreign += 1
+                    print(f"    {sg['label']}: пропущен — «{foreign[:40]}», "
+                          f"поток для иностранных студентов")
+                    continue
+
                 total_subgroups += 1
                 total_lessons += len(lessons)
 
@@ -342,11 +350,14 @@ class SocioParser(BaseParser):
 
         print(f"\n[socio] Итого: {groups_with_subgroups} групп с подгруппами, "
               f"{total_subgroups} подгрупп, {total_lessons} занятий на страницах")
+        if skipped_foreign:
+            print(f"[socio] Пропущено потоков для иностранных студентов: {skipped_foreign}")
 
         return {
             'groups_with_subgroups': groups_with_subgroups,
             'subgroups': total_subgroups,
             'lessons_seen': total_lessons,
+            'skipped_foreign': skipped_foreign,
         }
 
     # ======= Режим 3: Преподаватели через кафедры =======
@@ -541,6 +552,24 @@ class SocioParser(BaseParser):
             m -= 12
             y += 1
         return f'/index.php?pMns={m}.{y}'
+
+    @staticmethod
+    def foreign_stream_subject(lessons: list) -> str:
+        """
+        Если поток учит предмет из SKIP_SUBGROUP_SUBJECTS — вернуть его
+        название, иначе пустую строку.
+
+        Так отсеиваются потоки для иностранных студентов: «Русский язык
+        как иностранный» и подобное. Смотрим на предмет, а не на код группы,
+        потому что коды пересобираются каждый семестр, а названия предметов
+        живут годами.
+        """
+        for l in lessons:
+            subject = (l.get('subject') or '') if isinstance(l, dict) else (l['subject'] or '')
+            for marker in SKIP_SUBGROUP_SUBJECTS:
+                if marker.lower() in subject.lower():
+                    return subject
+        return ''
 
     @staticmethod
     def is_subgroup_label(label: str, group_code: str) -> bool:

@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.database import (
     _create_tables, _register_functions, _migrate,
     save_lessons, save_subgroup_lessons, count_lessons,
-    get_conflicting_subjects, get_lessons_for_date,
+    delete_streams_by_subject, get_conflicting_subjects, get_lessons_for_date,
 )
 from bot.formatting import split_streams, format_streams, format_day_schedule
 from bot.main import filter_lessons
@@ -129,6 +129,66 @@ class TestSubgroupStorage(DbTestCase):
     def test_empty_label_refused(self):
         with self.assertRaises(ValueError):
             save_subgroup_lessons(self.conn, 1, '', [lesson(3, 'Английский язык')])
+
+
+class TestForeignStudentStreams(DbTestCase):
+    """
+    Потоки для иностранных студентов бот не собирает — не его аудитория.
+    Правило по названию предмета, а не по коду группы: коды пересобираются
+    каждый семестр, названия предметов живут годами.
+    """
+
+    MARKERS = ('Русский язык как иностранный', 'Русский язык')
+
+    def test_detects_foreign_stream(self):
+        self.assertEqual(
+            SocioParser.foreign_stream_subject([{'subject': 'Русский язык как иностранный'}]),
+            'Русский язык как иностранный')
+
+    def test_detects_by_any_lesson(self):
+        """У потока мг55кпсм-1 кроме русского была своя программа."""
+        lessons = [{'subject': 'Философия'},
+                   {'subject': 'Педагогика и психология высшей школы'},
+                   {'subject': 'Русский язык'}]
+        self.assertEqual(SocioParser.foreign_stream_subject(lessons), 'Русский язык')
+
+    def test_ordinary_stream_passes(self):
+        lessons = [{'subject': 'Английский язык'}, {'subject': 'Философия'}]
+        self.assertEqual(SocioParser.foreign_stream_subject(lessons), '')
+
+    def test_delete_removes_whole_stream(self):
+        """
+        Удаляется поток целиком, а не только совпавшие занятия: своя
+        программа иностранцев — такой же чужой материал, как и русский.
+        """
+        save_lessons(self.conn, 1, [lesson(1, 'Социология')])
+        save_subgroup_lessons(self.conn, 1, 'мг55кпсм-1', [
+            lesson(2, 'Русский язык'),
+            lesson(3, 'Философия'),
+            lesson(4, 'Педагогика и психология высшей школы'),
+        ], only_new=False)
+        save_subgroup_lessons(self.conn, 1, 'с101-3',
+                              [lesson(5, 'Английский язык')], only_new=False)
+
+        removed = delete_streams_by_subject(self.conn, self.MARKERS)
+
+        self.assertEqual(removed, 3, "весь поток, а не одно занятие")
+        left = self.conn.execute(
+            "SELECT subgroup, subject FROM lessons WHERE subgroup != ''").fetchall()
+        self.assertEqual([(r['subgroup'], r['subject']) for r in left],
+                         [('с101-3', 'Английский язык')])
+
+    def test_group_lessons_untouched(self):
+        save_lessons(self.conn, 1, [lesson(1, 'Социология'), lesson(2, 'Русский язык')])
+        delete_streams_by_subject(self.conn, self.MARKERS)
+        self.assertEqual(count_lessons(self.conn, 1), 2,
+                         "занятия самой группы чистка не трогает")
+
+    def test_empty_markers_do_nothing(self):
+        save_subgroup_lessons(self.conn, 1, 'с101-1',
+                              [lesson(2, 'Русский язык')], only_new=False)
+        self.assertEqual(delete_streams_by_subject(self.conn, ()), 0)
+        self.assertEqual(delete_streams_by_subject(self.conn, ('',)), 0)
 
 
 class TestStreamsDoNotLookLikeElectives(DbTestCase):

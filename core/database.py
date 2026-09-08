@@ -299,6 +299,35 @@ def save_subgroup_lessons(conn, group_id: int, subgroup: str,
     return len(lessons)
 
 
+def delete_streams_by_subject(conn, markers) -> int:
+    """
+    Убрать из базы потоки, которые учат предмет из списка маркеров.
+
+    Удаляется поток ЦЕЛИКОМ, а не только совпавшие занятия: у потока для
+    иностранных студентов кроме русского языка бывает своя программа —
+    педагогика, философия, методология, — и она такой же чужой материал.
+
+    Нужно, чтобы список маркеров можно было менять и база подчищалась сама,
+    без ручного SQL.
+    """
+    markers = [m for m in markers if m]
+    if not markers:
+        return 0
+
+    like = ' OR '.join("x.subject LIKE ?" for _ in markers)
+    cur = conn.execute(
+        f"""DELETE FROM lessons
+             WHERE subgroup != ''
+               AND EXISTS (SELECT 1 FROM lessons x
+                            WHERE x.group_id = lessons.group_id
+                              AND x.subgroup = lessons.subgroup
+                              AND ({like}))""",
+        [f'%{m}%' for m in markers]
+    )
+    conn.commit()
+    return cur.rowcount
+
+
 def log_parse(conn, faculty_code, status, lessons_count=0, groups_count=0, message=''):
     conn.execute(
         "INSERT INTO parse_log (faculty_code, status, lessons_count, groups_count, message) VALUES (?, ?, ?, ?, ?)",

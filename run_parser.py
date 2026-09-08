@@ -19,10 +19,10 @@
 
 import sys
 
-from core.config import MIN_LESSONS_PER_GROUP
+from core.config import MIN_LESSONS_PER_GROUP, SKIP_SUBGROUP_SUBJECTS
 from core.database import (
     get_connection, get_or_create_faculty, get_or_create_group,
-    save_lessons, save_subgroup_lessons, log_parse
+    save_lessons, save_subgroup_lessons, delete_streams_by_subject, log_parse
 )
 from core.alerts import alert_parse_ok, alert_parse_error, alert_parse_warning
 
@@ -193,6 +193,13 @@ def run_subgroups():
 
     groups_info = [(g['id'], g['code'], g['site_id']) for g in groups]
     print(f"[subgroups] Групп: {len(groups_info)}")
+
+    # Список пропускаемых предметов мог измениться с прошлого прогона —
+    # подчищаем базу, чтобы не оставалось того, что больше не собираем
+    removed = delete_streams_by_subject(conn, SKIP_SUBGROUP_SUBJECTS)
+    if removed:
+        print(f"[subgroups] Убрано ранее собранных занятий из пропускаемых "
+              f"потоков: {removed}")
 
     saved_lessons = 0
     saved_subgroups = 0

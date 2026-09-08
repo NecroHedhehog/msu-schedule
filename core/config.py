@@ -42,6 +42,17 @@ PARSER_MAX_ATTEMPTS = int(os.getenv('PARSER_MAX_ATTEMPTS', '4'))
 PARSER_RETRY_BACKOFF = float(os.getenv('PARSER_RETRY_BACKOFF', '3'))
 # Порог "подозрительно мало занятий" — на группу, а не на факультет
 MIN_LESSONS_PER_GROUP = int(os.getenv('MIN_LESSONS_PER_GROUP', '10'))
+# Потоки, которые собирать не нужно: занятия для иностранных студентов —
+# не аудитория бота. Правило по НАЗВАНИЮ ПРЕДМЕТА, а не по коду группы:
+# коды меняются каждый семестр, названия предметов — нет.
+# Поток пропускается целиком, если хоть одно его занятие содержит маркер.
+SKIP_SUBGROUP_SUBJECTS = tuple(
+    m.strip() for m in os.getenv(
+        'SKIP_SUBGROUP_SUBJECTS',
+        'Русский язык как иностранный|Русский язык'
+    ).split('|') if m.strip()
+)
+
 # Не затирать расписание группы, если пришло меньше этой доли от того,
 # что уже лежит в базе за те же даты (сайт икнул и отдал огрызок)
 SHRINK_GUARD_RATIO = float(os.getenv('SHRINK_GUARD_RATIO', '0.5'))
