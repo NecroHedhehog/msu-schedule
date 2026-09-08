@@ -205,6 +205,35 @@ class TestBrokenTitleRepair(ParserTestCase):
         self.assertEqual(parser.unparsed_blocks, 0)
 
 
+class TestSubgroupDetection(unittest.TestCase):
+    """
+    В списке «студентов» сайт держит и живых людей, и подгруппы —
+    потоки иностранного языка. Обращение к ним одинаковое (?selst=N),
+    отличить можно только по метке.
+    """
+
+    def test_subgroup_labels(self):
+        for label, code in [('мг51соврс-1', 'мг51соврс'),
+                            ('мг55кпсм-2', 'мг55кпсм'),
+                            ('МГ56САСИД-3', 'мг56сасид'),      # регистр не важен
+                            ('мг51соврс - 1', 'мг51соврс'),    # пробелы вокруг дефиса
+                            ('с101-1', 'с101')]:
+            self.assertTrue(SocioParser.is_subgroup_label(label, code), label)
+
+    def test_people_are_not_subgroups(self):
+        for label in ('Авдохина С.Б.', 'Смирнов-Петров А.Б.',
+                      'Иванова Мария Сергеевна', 'мг51соврс'):
+            self.assertFalse(SocioParser.is_subgroup_label(label, 'мг51соврс'), label)
+
+    def test_empty_input(self):
+        self.assertFalse(SocioParser.is_subgroup_label('', 'мг51соврс'))
+        self.assertFalse(SocioParser.is_subgroup_label('мг51соврс-1', ''))
+
+    def test_other_group_code_does_not_match(self):
+        """Подгруппа чужой группы — не подгруппа этой."""
+        self.assertFalse(SocioParser.is_subgroup_label('мг55кпсм-1', 'мг51соврс'))
+
+
 class TestShrinkGuard(unittest.TestCase):
     """Защита от затирания: огрызок с сайта не должен стирать нормальные данные."""
 

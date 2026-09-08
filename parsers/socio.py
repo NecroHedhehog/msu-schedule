@@ -467,6 +467,21 @@ class SocioParser(BaseParser):
             y += 1
         return f'/index.php?pMns={m}.{y}'
 
+    @staticmethod
+    def is_subgroup_label(label: str, group_code: str) -> bool:
+        """
+        Запись в списке «студентов» — это подгруппа, а не человек?
+
+        Подгруппами сайт заводит потоки иностранного языка: группа учит
+        разные языки, у каждого потока свой преподаватель и своё время,
+        и одним занятием на всю группу это не показать. Метка подгруппы —
+        код группы с номером: «мг51соврс-1». Фамилия так выглядеть не может.
+        """
+        if not label or not group_code:
+            return False
+        pattern = re.escape(group_code.strip().lower()) + r'\s*-\s*\d+$'
+        return re.match(pattern, label.strip().lower()) is not None
+
     def _find_students(self, html: str) -> list:
         """Извлечь список студентов из боковой панели."""
         soup = BeautifulSoup(html, 'html.parser')
