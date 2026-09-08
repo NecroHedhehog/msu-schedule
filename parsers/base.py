@@ -52,6 +52,7 @@ class BaseParser(ABC):
         self.failed_urls = []
         self.unparsed_blocks = 0
         self.unparsed_samples = []
+        self.repaired_titles = 0
 
     # ======= Статистика прогона =======
 
@@ -61,6 +62,7 @@ class BaseParser(ABC):
             'requests_failed': self.requests_failed,
             'retries_used': self.retries_used,
             'unparsed_blocks': self.unparsed_blocks,
+            'repaired_titles': self.repaired_titles,
             'failed_urls': list(self.failed_urls),
         }
 
@@ -69,7 +71,8 @@ class BaseParser(ABC):
             f"запросов ок: {self.requests_ok}, "
             f"провалено: {self.requests_failed}, "
             f"повторов: {self.retries_used}, "
-            f"нераспознанных блоков: {self.unparsed_blocks}"
+            f"нераспознанных блоков: {self.unparsed_blocks}, "
+            f"починено заголовков: {self.repaired_titles}"
         )
 
     def _note_unparsed(self, title: str, date_hint: str = '', pair_hint=''):

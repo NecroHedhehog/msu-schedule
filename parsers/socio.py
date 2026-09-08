@@ -35,6 +35,18 @@ class SocioParser(BaseParser):
     ABBR_COLOR = '#004000'
     TYPE_KEYWORDS = ('Лк', 'Сем', 'Зч', 'Экз', 'Пр', 'Конс', 'Доп')
 
+    # Сайт кладёт в title="..." неэкранированные кавычки:
+    #   title="Лекция по 'Анализ ... в программе "Статистический пакет..."'"
+    # Любой HTML-парсер обрывает атрибут на первой внутренней кавычке, и
+    # занятие теряется молча. Ловим открывающий тег занятия целиком:
+    # содержимое title — это либо не-кавычка, либо кавычка, за которой НЕ идёт
+    # '>', то есть настоящий конец атрибута определяется по '">'.
+    # Сужено до div'ов занятия: у td и a атрибут title не последний, и
+    # чинить их той же меркой нельзя.
+    LESSON_TITLE_RE = re.compile(
+        r'(<div\s+id=["\']?LESS["\']?[^>]*?title=")((?:[^"]|"(?!>))*)(">)',
+        re.I | re.S)
+
     SKIP_DEPARTMENTS = {'Администрация'}
 
     # ======= Режим 1: Групповые расписания (существующий) =======
@@ -400,7 +412,7 @@ class SocioParser(BaseParser):
 
     def _parse_teacher_page(self, html: str, teacher_name: str) -> list:
         """Парсить расписание преподавателя. Извлекает предмет + группы."""
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(self._repair_lesson_titles(html), 'html.parser')
         lessons = []
 
         for date_cell in soup.find_all('td', string=self.DATE_RE):
@@ -530,8 +542,19 @@ class SocioParser(BaseParser):
 
     # ======= Парсинг расписания =======
 
+    def _repair_lesson_titles(self, html: str) -> str:
+        """Экранировать кавычки внутри title занятия, прежде чем парсить."""
+        def fix(m):
+            head, inner, tail = m.group(1), m.group(2), m.group(3)
+            if '"' not in inner:
+                return m.group(0)
+            self.repaired_titles += 1
+            return head + inner.replace('"', '&quot;') + tail
+
+        return self.LESSON_TITLE_RE.sub(fix, html)
+
     def _parse_page(self, html):
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(self._repair_lesson_titles(html), 'html.parser')
         lessons = []
 
         for date_cell in soup.find_all('td', string=self.DATE_RE):

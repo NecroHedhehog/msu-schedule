@@ -128,6 +128,83 @@ class TestUnparsedBlocks(ParserTestCase):
         self.assertIn('не по формату', parser.unparsed_samples[0])
 
 
+class TestBrokenTitleRepair(ParserTestCase):
+    """
+    Разметка, снятая с живого сайта 08.09.2026. Первый случай стоил
+    106 потерянных занятий за прогон — их находил счётчик нераспознанных
+    блоков, но сами занятия молча пропадали.
+    """
+
+    @staticmethod
+    def wrap(div):
+        return ('<table><tr><td>08.09.2026</td></tr>'
+                f'<tr><td class="TmTblC">{div}</td></tr></table>')
+
+    BODY = ('<font color="#004000"><b>АСИ</b></font>'
+            '<b>301</b><font>Лк</font>[с301]Иванов И.И.')
+
+    def test_unescaped_quotes_in_title(self):
+        """title="Лекция по 'Анализ ... в программе "Статистический пакет..."'" """
+        div = ('<div id="LESS" title="Лекция по \'Анализ статистической информации '
+               'в программе "Статистический пакет для социальных наук"\'">'
+               + self.BODY + '</div>')
+
+        parser = SocioParser()
+        lessons = parser._parse_page(self.wrap(div))
+
+        self.assertEqual(len(lessons), 1, "занятие больше не теряется")
+        self.assertEqual(
+            lessons[0]['subject'],
+            'Анализ статистической информации в программе '
+            '"Статистический пакет для социальных наук"')
+        self.assertEqual(lessons[0]['teacher'], 'Иванов И.И.')
+        self.assertEqual(parser.unparsed_blocks, 0)
+        self.assertEqual(parser.repaired_titles, 1)
+
+    def test_style_glued_to_id_and_added_suffix(self):
+        """Второй реальный случай: style без пробела после id и хвост «Добавлено»."""
+        div = ('<div id="LESS"style="border:1px solid red" '
+               'title="Лекция по \'Социальное пространство современных городов\' '
+               'Добавлено 03.09.2026,14:20">' + self.BODY + '</div>')
+
+        parser = SocioParser()
+        lessons = parser._parse_page(self.wrap(div))
+
+        self.assertEqual(len(lessons), 1)
+        self.assertEqual(lessons[0]['subject'],
+                         'Социальное пространство современных городов')
+        self.assertEqual(parser.unparsed_blocks, 0)
+
+    def test_normal_title_untouched(self):
+        div = ('<div id="LESS" title="Семинар по \'Методология\'">'
+               + self.BODY + '</div>')
+        parser = SocioParser()
+        lessons = parser._parse_page(self.wrap(div))
+
+        self.assertEqual(lessons[0]['subject'], 'Методология')
+        self.assertEqual(parser.repaired_titles, 0, "чинить было нечего")
+
+    def test_repair_does_not_touch_other_tags(self):
+        """У td и a title не последний атрибут — их той же меркой чинить нельзя."""
+        html = '<td title="Иванов Иван Иванович" class="name">Иванов И.И.</td>'
+        parser = SocioParser()
+        self.assertEqual(parser._repair_lesson_titles(html), html)
+        self.assertEqual(parser.repaired_titles, 0)
+
+    def test_repair_is_per_lesson_not_across_page(self):
+        """Починка одного блока не должна съедать соседний."""
+        broken = ('<div id="LESS" title="Лекция по \'А "Б" В\'">' + self.BODY + '</div>')
+        ok = ('<div id="LESS" title="Семинар по \'Обычный предмет\'">' + self.BODY + '</div>')
+
+        parser = SocioParser()
+        lessons = parser._parse_page(self.wrap(broken + ok))
+
+        self.assertEqual([l['subject'] for l in lessons],
+                         ['А "Б" В', 'Обычный предмет'])
+        self.assertEqual(parser.repaired_titles, 1)
+        self.assertEqual(parser.unparsed_blocks, 0)
+
+
 class TestShrinkGuard(unittest.TestCase):
     """Защита от затирания: огрызок с сайта не должен стирать нормальные данные."""
 
