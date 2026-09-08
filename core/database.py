@@ -142,6 +142,19 @@ def _create_tables(conn: sqlite3.Connection):
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
+        -- Выбранный человеком языковой поток.
+        -- Хранится СМЫСЛОМ (предмет + преподаватель), а не номером потока:
+        -- номер «с101-3» живёт один семестр, потому что коды групп
+        -- пересобираются, а студент переходит на следующий курс.
+        CREATE TABLE IF NOT EXISTS user_streams (
+            chat_id INTEGER NOT NULL,
+            group_id INTEGER NOT NULL,
+            subject TEXT NOT NULL,
+            teacher TEXT DEFAULT '',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(chat_id, group_id)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_lessons_group_date ON lessons(group_id, date);
         CREATE INDEX IF NOT EXISTS idx_lessons_date ON lessons(date);
         CREATE INDEX IF NOT EXISTS idx_subscriptions_chat ON subscriptions(chat_id);
@@ -458,6 +471,72 @@ def toggle_user_subject(conn, chat_id: int, group_id: int, subject: str) -> bool
         )
         conn.commit()
         return True
+
+
+# === Бот: языковые потоки ===
+
+def get_stream_subjects(conn, group_id: int) -> list:
+    """Языки, которые есть у группы в потоках: [(предмет, занятий), ...]."""
+    return [(r['subject'], r['n']) for r in conn.execute(
+        """SELECT subject, COUNT(*) AS n FROM lessons
+            WHERE group_id = ? AND subgroup != '' AND date >= date('now')
+            GROUP BY subject ORDER BY n DESC""", (group_id,))]
+
+
+def get_stream_teachers(conn, group_id: int, subject: str) -> list:
+    """Преподаватели этого языка у группы: [(преподаватель, занятий), ...]."""
+    return [(r['teacher'], r['n']) for r in conn.execute(
+        """SELECT teacher, COUNT(*) AS n FROM lessons
+            WHERE group_id = ? AND subgroup != '' AND subject = ?
+              AND teacher != '' AND date >= date('now')
+            GROUP BY teacher ORDER BY n DESC""", (group_id, subject))]
+
+
+def set_user_stream(conn, chat_id: int, group_id: int, subject: str, teacher: str = ''):
+    conn.execute(
+        """INSERT INTO user_streams (chat_id, group_id, subject, teacher)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(chat_id, group_id) DO UPDATE SET
+               subject = excluded.subject, teacher = excluded.teacher""",
+        (chat_id, group_id, subject, teacher))
+    conn.commit()
+
+
+def clear_user_stream(conn, chat_id: int, group_id: int):
+    conn.execute("DELETE FROM user_streams WHERE chat_id = ? AND group_id = ?",
+                 (chat_id, group_id))
+    conn.commit()
+
+
+def resolve_user_stream(conn, chat_id: int, group_id: int) -> dict | None:
+    """
+    Сохранённый выбор потока — но только если он ещё к чему-то подходит.
+
+    Здесь и живёт защита от «ломается раз в полгода»: если выбранного языка
+    у группы больше нет (сменился семестр, студент перешёл на курс без
+    языков), возвращаем None, и бот показывает все потоки, как будто выбора
+    не было. Хуже нынешнего поведения не станет никогда.
+
+    Преподаватель — второй уровень и необязательный: если он сменился,
+    выбор сам скатывается до уровня языка, а не пропадает целиком.
+    """
+    row = conn.execute(
+        "SELECT subject, teacher FROM user_streams WHERE chat_id = ? AND group_id = ?",
+        (chat_id, group_id)).fetchone()
+    if not row:
+        return None
+
+    subjects = {s for s, _ in get_stream_subjects(conn, group_id)}
+    if row['subject'] not in subjects:
+        return None          # язык устарел — фильтр молча выключается
+
+    teacher = row['teacher'] or ''
+    if teacher:
+        teachers = {t for t, _ in get_stream_teachers(conn, group_id, row['subject'])}
+        if teacher not in teachers:
+            teacher = ''     # преподаватель сменился — остаёмся на языке
+
+    return {'subject': row['subject'], 'teacher': teacher}
 
 
 # === Аналитика ===

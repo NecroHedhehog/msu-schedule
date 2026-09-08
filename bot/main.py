@@ -28,6 +28,8 @@ from core.database import (
     get_lessons_for_date, get_lessons_for_week, get_date_range,
     get_conflicting_subjects, get_user_subjects, toggle_user_subject,
     track_user, log_action, get_stats,
+    get_stream_subjects, get_stream_teachers,
+    set_user_stream, clear_user_stream, resolve_user_stream,
 )
 from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
 from core.database import find_groups_by_code
@@ -131,8 +133,9 @@ def get_schedule_for_date(group_id: int, d: date, chat_id: int) -> tuple:
     lessons = get_lessons_for_date(conn, group_id, d.strftime('%Y-%m-%d'))
     user_subj = get_user_subjects(conn, chat_id, group_id)
     data_range = get_date_range(conn, group_id)
+    stream_choice = resolve_user_stream(conn, chat_id, group_id)
     conn.close()
-    return filter_lessons(lessons, user_subj), data_range
+    return filter_lessons(lessons, user_subj), data_range, stream_choice
 
 
 def get_week_days(group_id: int, monday: date, chat_id: int) -> tuple:
@@ -144,6 +147,7 @@ def get_week_days(group_id: int, monday: date, chat_id: int) -> tuple:
     )
     user_subj = get_user_subjects(conn, chat_id, group_id)
     data_range = get_date_range(conn, group_id)
+    stream_choice = resolve_user_stream(conn, chat_id, group_id)
     conn.close()
 
     filtered = filter_lessons(all_lessons, user_subj)
@@ -157,7 +161,7 @@ def get_week_days(group_id: int, monday: date, chat_id: int) -> tuple:
         if d not in days:
             days[d] = []
 
-    return dict(days), data_range
+    return dict(days), data_range, stream_choice
 
 
 # === Трекинг ===
@@ -510,10 +514,12 @@ async def cmd_today(message: Message, state: FSMContext):
     do_track(message, 'today')
 
     d = date.today()
-    lessons, data_range = get_schedule_for_date(user['group_id'], d, message.chat.id)
+    lessons, data_range, stream_choice = get_schedule_for_date(
+        user['group_id'], d, message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d, data_range=data_range)
+    text += format_day_schedule(lessons, d, data_range=data_range,
+                                stream_choice=stream_choice)
 
     if d.weekday() >= 5 and not lessons:
         text += "\n\nНажми <b>🗓 Неделя</b> — покажу следующую."
@@ -531,10 +537,12 @@ async def cmd_tomorrow(message: Message, state: FSMContext):
     do_track(message, 'tomorrow')
 
     d = date.today() + timedelta(days=1)
-    lessons, data_range = get_schedule_for_date(user['group_id'], d, message.chat.id)
+    lessons, data_range, stream_choice = get_schedule_for_date(
+        user['group_id'], d, message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d, data_range=data_range)
+    text += format_day_schedule(lessons, d, data_range=data_range,
+                                stream_choice=stream_choice)
 
     await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 
@@ -562,7 +570,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
     else:
         chat_id = message_or_callback.chat.id
 
-    days, data_range = get_week_days(user['group_id'], monday, chat_id)
+    days, data_range, stream_choice = get_week_days(user['group_id'], monday, chat_id)
     sunday = monday + timedelta(days=6)
 
     header = (
@@ -570,7 +578,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
         f"📅 Неделя: {monday.strftime('%d.%m')} — {sunday.strftime('%d.%m')}\n\n"
     )
 
-    text = header + format_week_schedule(days, data_range)
+    text = header + format_week_schedule(days, data_range, stream_choice)
     keyboard = week_nav_keyboard(monday, user['group_id'])
 
     if len(text) > 4000:
@@ -586,7 +594,8 @@ async def send_week(message_or_callback, user: dict, monday: date):
 
         for d in sorted(days.keys()):
             if d.weekday() < 6:
-                await send(format_day_schedule(days[d], d, data_range=data_range),
+                await send(format_day_schedule(days[d], d, data_range=data_range,
+                                               stream_choice=stream_choice),
                            parse_mode=ParseMode.HTML)
         await send("Навигация:", reply_markup=keyboard)
     else:
@@ -616,10 +625,12 @@ async def on_day_navigate(callback: CallbackQuery):
         return
     date_str = callback.data.split(':')[1]
     d = datetime.strptime(date_str, '%Y-%m-%d').date()
-    lessons, data_range = get_schedule_for_date(user['group_id'], d, callback.message.chat.id)
+    lessons, data_range, stream_choice = get_schedule_for_date(
+        user['group_id'], d, callback.message.chat.id)
 
     text = f"👥 <b>{user['group_code']}</b>\n\n"
-    text += format_day_schedule(lessons, d, data_range=data_range)
+    text += format_day_schedule(lessons, d, data_range=data_range,
+                                stream_choice=stream_choice)
 
     await callback.message.edit_text(
         text, parse_mode=ParseMode.HTML, reply_markup=day_nav_keyboard(d))
@@ -724,6 +735,171 @@ async def on_subject_toggle(callback: CallbackQuery):
     ])
     await callback.message.edit_reply_markup(
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+
+# === Выбор языкового потока ===
+#
+# Выбор хранится смыслом — предмет и преподаватель, — а не номером потока.
+# Номер «с101-3» живёт один семестр: коды групп на сайте пересобираются,
+# да и студент переходит на курс, где языков уже нет. Проверку на
+# актуальность делает resolve_user_stream: если выбранного языка у группы
+# больше нет, фильтр молча выключается и показываются все потоки.
+
+
+@router.message(Command('язык', 'language', 'lang'))
+async def cmd_language(message: Message, state: FSMContext):
+    await state.clear()
+    user = await check_group(message)
+    if not user:
+        return
+    do_track(message, 'language')
+
+    conn = get_connection()
+    subjects = get_stream_subjects(conn, user['group_id'])
+    current = resolve_user_stream(conn, message.chat.id, user['group_id'])
+    conn.close()
+
+    if not subjects:
+        await message.answer(
+            "🔤 У твоей группы нет языковых потоков.\n"
+            "Языки идут только на первом курсе.",
+            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+        return
+
+    buttons = [[InlineKeyboardButton(
+        text=f"{'✅ ' if current and current['subject'] == subj else ''}{subj}",
+        callback_data=f"lang:s:{subject_hash(subj)}")] for subj, _ in subjects]
+    buttons.append([InlineKeyboardButton(text="Показывать все", callback_data="lang:all")])
+
+    if current:
+        now = current['subject']
+        if current['teacher']:
+            now += f" — {current['teacher']}"
+        head = f"🔤 Сейчас выбрано: <b>{now}</b>\n\nВыбери язык:"
+    else:
+        head = ("🔤 <b>Языковые потоки</b>\n\n"
+                "Группа учит разные языки, и у каждого потока своё время "
+                "и преподаватель. Выбери свой — в расписании останется только он.\n\n"
+                "Какой язык:")
+
+    await message.answer(head, parse_mode=ParseMode.HTML,
+                         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+
+@router.callback_query(F.data == 'lang:all')
+async def on_lang_all(callback: CallbackQuery):
+    user = await check_group(callback)
+    if not user:
+        return
+    conn = get_connection()
+    clear_user_stream(conn, callback.message.chat.id, user['group_id'])
+    conn.close()
+    do_track_cb(callback, 'language_all')
+
+    await callback.message.edit_text(
+        "🔤 Показываю все потоки.\nВернуть выбор — /язык", parse_mode=ParseMode.HTML)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('lang:s:'))
+async def on_lang_subject(callback: CallbackQuery):
+    user = await check_group(callback)
+    if not user:
+        return
+    wanted = callback.data.split(':', 2)[2]
+
+    conn = get_connection()
+    subject = next((s for s, _ in get_stream_subjects(conn, user['group_id'])
+                    if subject_hash(s) == wanted), None)
+    if not subject:
+        conn.close()
+        await callback.answer("Язык не найден, попробуй /язык заново")
+        return
+
+    teachers = get_stream_teachers(conn, user['group_id'], subject)
+
+    # Один преподаватель или ни одного — второй шаг не нужен
+    if len(teachers) <= 1:
+        set_user_stream(conn, callback.message.chat.id, user['group_id'], subject,
+                        teachers[0][0] if teachers else '')
+        conn.close()
+        do_track_cb(callback, 'language_set', subject)
+        await callback.message.edit_text(
+            f"✅ Твой язык: <b>{subject}</b>\n\n"
+            f"В расписании останется только он. Изменить — /язык",
+            parse_mode=ParseMode.HTML)
+        await callback.answer()
+        return
+
+    conn.close()
+
+    buttons = [[InlineKeyboardButton(
+        text=f"{name} ({n})",
+        callback_data=f"lang:t:{wanted}:{subject_hash(name)}")] for name, n in teachers]
+    buttons.append([InlineKeyboardButton(
+        text="Любой преподаватель", callback_data=f"lang:any:{wanted}")])
+
+    await callback.message.edit_text(
+        f"🔤 <b>{subject}</b>\n\nУ кого занимаешься? В скобках — сколько занятий "
+        f"у преподавателя до конца собранного расписания.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('lang:any:'))
+async def on_lang_any_teacher(callback: CallbackQuery):
+    user = await check_group(callback)
+    if not user:
+        return
+    wanted = callback.data.split(':', 2)[2]
+
+    conn = get_connection()
+    subject = next((s for s, _ in get_stream_subjects(conn, user['group_id'])
+                    if subject_hash(s) == wanted), None)
+    if subject:
+        set_user_stream(conn, callback.message.chat.id, user['group_id'], subject, '')
+    conn.close()
+
+    if not subject:
+        await callback.answer("Язык не найден, попробуй /язык заново")
+        return
+
+    do_track_cb(callback, 'language_set', subject)
+    await callback.message.edit_text(
+        f"✅ Твой язык: <b>{subject}</b>, любой преподаватель.\n\nИзменить — /язык",
+        parse_mode=ParseMode.HTML)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('lang:t:'))
+async def on_lang_teacher(callback: CallbackQuery):
+    user = await check_group(callback)
+    if not user:
+        return
+    _, _, shash, thash = callback.data.split(':', 3)
+
+    conn = get_connection()
+    subject = next((s for s, _ in get_stream_subjects(conn, user['group_id'])
+                    if subject_hash(s) == shash), None)
+    teacher = None
+    if subject:
+        teacher = next((t for t, _ in get_stream_teachers(conn, user['group_id'], subject)
+                        if subject_hash(t) == thash), None)
+    if subject and teacher:
+        set_user_stream(conn, callback.message.chat.id, user['group_id'], subject, teacher)
+    conn.close()
+
+    if not (subject and teacher):
+        await callback.answer("Поток не найден, попробуй /язык заново")
+        return
+
+    do_track_cb(callback, 'language_set', f"{subject} / {teacher}")
+    await callback.message.edit_text(
+        f"✅ Твой поток: <b>{subject}</b> — {teacher}\n\n"
+        f"В расписании останется только он. Изменить — /язык",
+        parse_mode=ParseMode.HTML)
+    await callback.answer()
 
 
 # === Реклама / Полезное ===
@@ -859,7 +1035,8 @@ async def cmd_help(message: Message, state: FSMContext):
         "📆 Завтра — на завтра\n"
         "🗓 Неделя — на неделю (с навигацией)\n"
         "📋 Предметы — выбрать свои предметы\n"
-        "👥 Сменить группу — выбрать другую группу\n\n"
+        "👥 Сменить группу — выбрать другую группу\n"
+        "/язык — выбрать свой языковой поток (первый курс)\n\n"
         "Также можно написать номер группы: <b>403</b>, <b>с403</b>",
         parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
 

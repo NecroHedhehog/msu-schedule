@@ -55,22 +55,51 @@ def stream_number(subgroup: str) -> str:
     return subgroup.rsplit('-', 1)[-1].strip() if '-' in subgroup else subgroup
 
 
-def format_streams(streams: list) -> str:
+def apply_stream_choice(streams: list, choice: dict = None) -> list:
+    """
+    Оставить только выбранный человеком поток.
+
+    choice приходит из resolve_user_stream, то есть уже проверен на
+    актуальность: если выбранного языка у группы больше нет, сюда придёт
+    None и покажется всё.
+
+    Пустой результат — нормально: значит сегодня язык этого человека
+    не идёт, и блок показывать не надо.
+    """
+    if not choice:
+        return list(streams)
+
+    subject = choice.get('subject')
+    teacher = (choice.get('teacher') or '').strip()
+    return [l for l in streams
+            if l['subject'] == subject
+            and (not teacher or teacher in field(l, 'teacher'))]
+
+
+def format_streams(streams: list, choice: dict = None) -> str:
     """
     Блок потоков: сгруппирован по предмету.
 
     Плоским списком получалось до десяти строк на день — у группы бывает
     семь потоков, и английский идёт сразу у пяти преподавателей. Сгруппировав
     по предмету, человек сначала находит свой язык, а потом свой поток.
+    Если поток выбран, остаётся одна строка.
     """
     if not streams:
         return ''
+
+    had_any = bool(streams)
+    streams = apply_stream_choice(streams, choice)
+    if not streams:
+        # Выбор есть, но сегодня этого языка нет — блок не нужен
+        return '' if choice else ''
 
     by_subject = {}
     for l in streams:
         by_subject.setdefault(l['subject'], []).append(l)
 
-    lines = ["", "  ─────────", "  🔤 <b>Не у всех</b>"]
+    title = "🔤 <b>Ваш язык</b>" if choice else "🔤 <b>Не у всех</b>"
+    lines = ["", "  ─────────", f"  {title}"]
     for subject in sorted(by_subject):
         lines.append(f"  · <b>{subject}</b>")
 
@@ -90,6 +119,8 @@ def format_streams(streams: list) -> str:
                 f"     {l['pair_number']} ({l['time_start']}–{l['time_end']}) "
                 f"{room}{tail}  <i>[{stream_number(field(l, 'subgroup'))}]</i>")
 
+    lines.append("  <i>/язык — изменить</i>" if choice
+                 else "  <i>выбрать свой — /язык</i>")
     return '\n'.join(lines)
 
 
@@ -138,20 +169,21 @@ def empty_day_reason(d: date, data_range: tuple = None) -> str:
 
 
 def format_day_schedule(lessons: list, d: date, with_ad: bool = True,
-                        data_range: tuple = None) -> str:
+                        data_range: tuple = None, stream_choice: dict = None) -> str:
     header = format_date_header(d)
     main, streams = split_streams(lessons)
+    streams_text = format_streams(streams, stream_choice)
 
-    if not main and not streams:
+    if not main and not streams_text:
         text = f"{header}\n  {empty_day_reason(d, data_range)}"
     elif not main:
         # У группы пар нет, а языковой поток есть — так бывает
-        text = f"{header}\n  —" + format_streams(streams)
+        text = f"{header}\n  —" + streams_text
     else:
         lines = [header]
         for l in main:
             lines.append(format_lesson(l))
-        text = '\n'.join(lines) + format_streams(streams)
+        text = '\n'.join(lines) + streams_text
 
     if with_ad and AD_TEASER:
         text += f"\n\n{'─' * 20}\n{AD_TEASER}"
@@ -159,7 +191,8 @@ def format_day_schedule(lessons: list, d: date, with_ad: bool = True,
     return text
 
 
-def format_week_schedule(days: dict, data_range: tuple = None) -> str:
+def format_week_schedule(days: dict, data_range: tuple = None,
+                         stream_choice: dict = None) -> str:
     if not any(days.values()):
         week = sorted(days.keys())
         if week and data_range and data_range[1]:
@@ -170,7 +203,8 @@ def format_week_schedule(days: dict, data_range: tuple = None) -> str:
     for d in sorted(days.keys()):
         if d.weekday() < 6:
             parts.append(format_day_schedule(days[d], d, with_ad=False,
-                                             data_range=data_range))
+                                             data_range=data_range,
+                                             stream_choice=stream_choice))
     text = '\n\n'.join(parts)
 
     if AD_TEASER:

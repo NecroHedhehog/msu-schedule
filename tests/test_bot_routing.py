@@ -52,13 +52,26 @@ class FakeSession(BaseSession):
         return True
 
 
-class BotRoutingTest(unittest.IsolatedAsyncioTestCase):
+_DISPATCHER = None
+
+
+def shared_dispatcher():
     """
     router в bot/main.py — модульный синглтон, и прицепить его можно только
-    к одному Dispatcher. Поэтому диспетчер один на класс, а изоляция тестов
-    достигается своим chat_id на каждый тест: состояние FSM хранится по
-    паре (чат, пользователь) и между тестами не протекает.
+    к одному Dispatcher. Поэтому диспетчер один на весь модуль, а изоляция
+    тестов достигается своим chat_id на каждый тест: состояние FSM хранится
+    по паре (чат, пользователь) и между тестами не протекает.
     """
+    global _DISPATCHER
+    if _DISPATCHER is None:
+        import bot.main as bot_main
+        _DISPATCHER = Dispatcher(storage=MemoryStorage())
+        _DISPATCHER.include_router(bot_main.router)
+    return _DISPATCHER
+
+
+class BotTestCase(unittest.IsolatedAsyncioTestCase):
+    """Обвязка: своя временная база, подменённый транспорт, свой чат."""
 
     _chat_seq = 100
 
@@ -66,8 +79,10 @@ class BotRoutingTest(unittest.IsolatedAsyncioTestCase):
     def setUpClass(cls):
         import bot.main as bot_main
         cls.bot_main = bot_main
-        cls.dp = Dispatcher(storage=MemoryStorage())
-        cls.dp.include_router(bot_main.router)
+        cls.dp = shared_dispatcher()
+
+    def seed(self, conn):
+        """Данные под конкретный тест-класс."""
 
     async def asyncSetUp(self):
         BotRoutingTest._chat_seq += 1
@@ -96,6 +111,7 @@ class BotRoutingTest(unittest.IsolatedAsyncioTestCase):
         conn.execute("""INSERT INTO lessons
                         (group_id,date,pair_number,time_start,time_end,subject,teacher)
                         VALUES (1,'2026-09-08',1,'09:00','10:30','Социология','Смирнов В.А.')""")
+        self.seed(conn)
         conn.commit()
         conn.close()
 
@@ -146,7 +162,10 @@ class BotRoutingTest(unittest.IsolatedAsyncioTestCase):
                 buttons += [b.text for row in mk.inline_keyboard for b in row]
         return ' | '.join(texts), buttons
 
-    # --- собственно проверки ---
+
+class BotRoutingTest(BotTestCase):
+    """Маршрутизация: кнопка и следующий за ней текст."""
+
 
     async def test_teacher_mode_returns_only_teachers(self):
         """Главный баг: однофамилец-студент заслонял преподавателя."""
@@ -202,6 +221,106 @@ class BotRoutingTest(unittest.IsolatedAsyncioTestCase):
         text, buttons = await self.send_text("Абырвалг")
         self.assertEqual(buttons, [])
         self.assertIn('ничего не нашлось', text)
+
+
+class LanguagePickerTest(BotTestCase):
+    """
+    Выбор языкового потока. Хранится смыслом (предмет + преподаватель),
+    а не номером потока: номер живёт один семестр.
+    """
+
+    def seed(self, conn):
+        streams = [
+            ('Английский язык', 'Рассошенко Ж.В.', 'с403-2', 2),
+            ('Английский язык', 'Казимова Г.А.', 'с403-6', 4),
+            ('Немецкий язык', 'Шмидт А.А.', 'с403-7', 3),
+        ]
+        for subject, teacher, subgroup, pair in streams:
+            conn.execute(
+                """INSERT INTO lessons
+                   (group_id,date,pair_number,time_start,time_end,
+                    subject,room,teacher,subgroup)
+                   VALUES (1,'2099-01-15',?,'10:40','12:10',?,'320',?,?)""",
+                (pair, subject, teacher, subgroup))
+
+    async def pick_group(self):
+        await self.send_text("403")
+
+    async def test_offers_languages(self):
+        await self.pick_group()
+        text, buttons = await self.send_text("/язык")
+
+        self.assertIn('Английский язык', buttons)
+        self.assertIn('Немецкий язык', buttons)
+        self.assertIn('Показывать все', buttons)
+
+    async def test_single_teacher_language_saved_at_once(self):
+        """У немецкого один преподаватель — второй шаг не нужен."""
+        await self.pick_group()
+        await self.send_text("/язык")
+        text, _ = await self.press(f"lang:s:{self.bot_main.subject_hash('Немецкий язык')}")
+
+        self.assertIn('Немецкий язык', text)
+        self.assertIn('Твой язык', text)
+
+    async def test_two_step_for_english(self):
+        await self.pick_group()
+        await self.send_text("/язык")
+        shash = self.bot_main.subject_hash('Английский язык')
+
+        text, buttons = await self.press(f"lang:s:{shash}")
+        self.assertTrue(any('Рассошенко' in b for b in buttons))
+        self.assertTrue(any('Казимова' in b for b in buttons))
+        self.assertIn('Любой преподаватель', buttons)
+
+        thash = self.bot_main.subject_hash('Казимова Г.А.')
+        text, _ = await self.press(f"lang:t:{shash}:{thash}")
+        self.assertIn('Казимова Г.А.', text)
+
+    async def test_choice_survives_and_filters(self):
+        await self.pick_group()
+        await self.send_text("/язык")
+        shash = self.bot_main.subject_hash('Немецкий язык')
+        await self.press(f"lang:s:{shash}")
+
+        conn = db.get_connection()
+        choice = db.resolve_user_stream(conn, self.chat.id, 1)
+        conn.close()
+        self.assertEqual(choice['subject'], 'Немецкий язык')
+        self.assertEqual(choice['teacher'], 'Шмидт А.А.')
+
+    async def test_show_all_clears_choice(self):
+        await self.pick_group()
+        await self.send_text("/язык")
+        await self.press(f"lang:s:{self.bot_main.subject_hash('Немецкий язык')}")
+        text, _ = await self.press("lang:all")
+
+        self.assertIn('все потоки', text)
+        conn = db.get_connection()
+        self.assertIsNone(db.resolve_user_stream(conn, self.chat.id, 1))
+        conn.close()
+
+    async def test_stale_choice_is_ignored(self):
+        """
+        Главное свойство: сменился семестр, языка больше нет — фильтр
+        молча выключается, а не ломает расписание.
+        """
+        await self.pick_group()
+        conn = db.get_connection()
+        db.set_user_stream(conn, self.chat.id, 1, 'Испанский язык', 'Гарсиа К.А.')
+        self.assertIsNone(db.resolve_user_stream(conn, self.chat.id, 1))
+        conn.close()
+
+    async def test_group_without_streams(self):
+        conn = db.get_connection()
+        conn.execute("DELETE FROM lessons WHERE subgroup != ''")
+        conn.commit()
+        conn.close()
+
+        await self.pick_group()
+        text, buttons = await self.send_text("/язык")
+        self.assertIn('нет языковых потоков', text)
+        self.assertEqual(buttons, [])
 
 
 if __name__ == '__main__':
