@@ -106,9 +106,18 @@ def detect_course(code: str) -> int:
 
 
 def filter_lessons(lessons: list, user_subjects: list[str]) -> list:
+    """
+    Оставить только выбранные предметы.
+
+    Языковые потоки фильтр не трогает: человек их не выбирал, они приходят
+    отдельным блоком «не у всех», и вырезать их по названию предмета
+    означало бы просто спрятать.
+    """
     if not user_subjects:
         return list(lessons)
-    return [l for l in lessons if l['subject'] in user_subjects]
+    from bot.formatting import field
+    return [l for l in lessons
+            if field(l, 'subgroup') or l['subject'] in user_subjects]
 
 
 def get_schedule_for_date(group_id: int, d: date, chat_id: int) -> tuple:

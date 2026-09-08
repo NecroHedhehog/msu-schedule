@@ -207,13 +207,13 @@ class SocioParser(BaseParser):
         if not group_page:
             return [], []
 
-        students = self._find_students(group_page)
+        students = self._find_students(group_page, group_code)
         if not students:
             print(f"    студентов не найдено, пробуем через mnu=75")
             self.download('/index.php?mnu=75', encoding=self.ENCODING)
             group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
             if group_page:
-                students = self._find_students(group_page)
+                students = self._find_students(group_page, group_code)
 
         if not students:
             print(f"    студентов не найдено, пропускаю")
@@ -273,6 +273,81 @@ class SocioParser(BaseParser):
             print(f"    не удалось собрать расписание у {failed} студентов из {len(students)}")
 
         return students, teacher_updates
+
+    # ======= Режим 2б: Подгруппы (языковые потоки) =======
+
+    def parse_subgroups(self, groups_info: list, on_subgroup=None) -> dict:
+        """
+        Расписания подгрупп — потоков иностранного языка.
+
+        Отдельный проход, потому что стоит дёшево: список группы плюс три
+        запроса на подгруппу. На 49 групп это около 350 запросов против 3350
+        у полного студенческого прохода, а даёт то, чего в групповом
+        расписании нет вовсе.
+
+        on_subgroup(group_id, метка, занятия) — вызывается после каждой
+        подгруппы, чтобы сохранять по ходу.
+        """
+        print(f"\n[socio] Парсинг подгрупп (языковые потоки)")
+
+        # Без режима студента список подгрупп не отдаётся
+        self.download('/index.php?mnu=75', encoding=self.ENCODING, required=True)
+
+        groups_with_subgroups = 0
+        total_subgroups = 0
+        total_lessons = 0
+
+        for group_id, group_code, site_id in groups_info:
+            group_page = self.download(f'/index.php?gr={site_id}', encoding=self.ENCODING)
+            if not group_page:
+                continue
+
+            subgroups = self._find_roster(group_page, group_code)['subgroups']
+            if not subgroups:
+                continue
+
+            groups_with_subgroups += 1
+            print(f"\n  [{group_code}] подгрупп: {len(subgroups)}")
+
+            for sg in subgroups:
+                try:
+                    self.download(f"/index.php?selst={sg['site_id']}",
+                                  encoding=self.ENCODING)
+                    lessons = []
+                    for offset in [0, 1]:
+                        page = self.download(self._month_url_bare(offset),
+                                             encoding=self.ENCODING)
+                        if page:
+                            lessons.extend(self._parse_page(page))
+                except Exception as e:
+                    print(f"    {sg['label']}: ошибка — {e}")
+                    self._note_failure(f"/index.php?selst={sg['site_id']}",
+                                       f"подгруппа {sg['label']}: {e}")
+                    continue
+
+                total_subgroups += 1
+                total_lessons += len(lessons)
+
+                saved = None
+                if on_subgroup:
+                    try:
+                        saved = on_subgroup(group_id, sg['label'], lessons)
+                    except Exception as e:
+                        print(f"    {sg['label']}: НЕ СОХРАНЕНО — {e}")
+                        self._note_failure(f"/index.php?selst={sg['site_id']}",
+                                           f"сохранение {sg['label']}: {e}")
+
+                extra = f", своих {saved}" if saved is not None else ""
+                print(f"    {sg['label']}: {len(lessons)} занятий на странице{extra}")
+
+        print(f"\n[socio] Итого: {groups_with_subgroups} групп с подгруппами, "
+              f"{total_subgroups} подгрупп, {total_lessons} занятий на страницах")
+
+        return {
+            'groups_with_subgroups': groups_with_subgroups,
+            'subgroups': total_subgroups,
+            'lessons_seen': total_lessons,
+        }
 
     # ======= Режим 3: Преподаватели через кафедры =======
 
@@ -482,36 +557,49 @@ class SocioParser(BaseParser):
         pattern = re.escape(group_code.strip().lower()) + r'\s*-\s*\d+$'
         return re.match(pattern, label.strip().lower()) is not None
 
-    def _find_students(self, html: str) -> list:
-        """Извлечь список студентов из боковой панели."""
+    def _find_roster(self, html: str, group_code: str = '') -> dict:
+        """
+        Разобрать список, который сайт отдаёт для группы в режиме студента.
+
+        В нём лежат две разные сущности с одинаковым обращением ?selst=N:
+        живые студенты и подгруппы — потоки иностранного языка. Отличаются
+        только меткой: у подгруппы это код группы с номером, «с101-3».
+        У подгруппы при этом непустой title, так что без явной проверки
+        она попадает в список студентов и всплывает в боте среди фамилий.
+
+        Возвращает {'people': [...], 'subgroups': [...]}.
+        """
         soup = BeautifulSoup(html, 'html.parser')
-        students = []
+        people, subgroups = [], []
 
         for tr in soup.find_all('tr', onclick=self.SELST_LINK_RE):
-            onclick = tr.get('onclick', '')
-            m = self.SELST_LINK_RE.search(onclick)
+            m = self.SELST_LINK_RE.search(tr.get('onclick', ''))
             if not m:
                 continue
 
-            selst_id = m.group(1)
-
-            # Полное ФИО в title второго td
             tds = tr.find_all('td')
             if len(tds) < 2:
                 continue
 
             name_td = tds[1]
-            full_name = name_td.get('title', '').strip()
+            full_name = (name_td.get('title') or '').strip()
             short_name = name_td.get_text(strip=True)
+            label = short_name or full_name
 
-            if full_name:
-                students.append({
-                    'site_id': selst_id,
+            if self.is_subgroup_label(label, group_code):
+                subgroups.append({'site_id': m.group(1), 'label': label})
+            elif full_name:
+                people.append({
+                    'site_id': m.group(1),
                     'full_name': full_name,
                     'short_name': short_name,
                 })
 
-        return students
+        return {'people': people, 'subgroups': subgroups}
+
+    def _find_students(self, html: str, group_code: str = '') -> list:
+        """Только живые студенты: подгруппы отсеиваются."""
+        return self._find_roster(html, group_code)['people']
 
     # ======= Навигация =======
 

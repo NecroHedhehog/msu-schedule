@@ -179,12 +179,13 @@ def find_teachers_by_name(conn, query: str, limit: int = 10) -> list:
 
 
 def bind_student(conn, chat_id: int, student_id: int):
-    """Привязать Telegram-аккаунт к студенту."""
-    try:
-        conn.execute("ALTER TABLE users ADD COLUMN student_id INTEGER")
-        conn.commit()
-    except Exception:
-        pass
+    """
+    Привязать Telegram-аккаунт к студенту.
+
+    Колонку users.student_id раньше добавлял ALTER прямо здесь, в try/except,
+    то есть при каждой привязке. Теперь она заводится один раз при открытии
+    соединения — см. core.database._migrate.
+    """
     conn.execute("UPDATE users SET student_id = ? WHERE chat_id = ?", (student_id, chat_id))
     conn.commit()
 

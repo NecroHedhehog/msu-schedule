@@ -5,6 +5,7 @@
 Использование:
     python run_parser.py                      — всё (группы + студенты + преподаватели)
     python run_parser.py socio                — только групповые расписания (~107 запросов)
+    python run_parser.py subgroups            — языковые потоки (~350 запросов)
     python run_parser.py students             — студенты + преподаватели из расписаний
     python run_parser.py students --resume    — продолжить прерванный прогон
     python run_parser.py students --filter=с4 — только группы, чей код содержит 'с4'
@@ -21,7 +22,7 @@ import sys
 from core.config import MIN_LESSONS_PER_GROUP
 from core.database import (
     get_connection, get_or_create_faculty, get_or_create_group,
-    save_lessons, log_parse
+    save_lessons, save_subgroup_lessons, log_parse
 )
 from core.alerts import alert_parse_ok, alert_parse_error, alert_parse_warning
 
@@ -165,6 +166,77 @@ def run_socio():
         alert_parse_warning('socio', '\n'.join(problems))
     else:
         alert_parse_ok('socio', saved_groups, saved_lessons)
+
+
+# ======= Подгруппы: языковые потоки =======
+
+def run_subgroups():
+    """
+    Расписания подгрупп — потоков иностранного языка.
+
+    Сайт заводит их отдельными сущностями, потому что группа учит разные
+    языки и одним занятием на всю группу это не показать. В групповом
+    расписании таких занятий нет вовсе.
+
+    Запускать ПОСЛЕ socio: сохраняются только занятия, которых у группы нет,
+    а для этого расписание группы должно уже лежать в базе.
+    """
+    from parsers.socio import SocioParser
+
+    conn = get_connection()
+    groups = get_groups_for_student_parse(conn)
+
+    if not groups:
+        print("[subgroups] Нет групп в базе. Сначала: python run_parser.py socio")
+        conn.close()
+        return
+
+    groups_info = [(g['id'], g['code'], g['site_id']) for g in groups]
+    print(f"[subgroups] Групп: {len(groups_info)}")
+
+    saved_lessons = 0
+    saved_subgroups = 0
+
+    def on_subgroup(group_id, label, lessons):
+        nonlocal saved_lessons, saved_subgroups
+        written = save_subgroup_lessons(conn, group_id, label, lessons)
+        saved_lessons += written
+        if written:
+            saved_subgroups += 1
+        return written
+
+    parser = SocioParser()
+
+    try:
+        result = parser.parse_subgroups(groups_info, on_subgroup=on_subgroup)
+    except Exception as e:
+        message = f"{type(e).__name__}: {e} | {parser.stats_line()}"
+        log_parse(conn, 'socio-subgroups', 'partial',
+                  lessons_count=saved_lessons, groups_count=saved_subgroups,
+                  message=message)
+        conn.close()
+        print(f"\n[subgroups] Прогон оборван: {e}")
+        print(f"[subgroups] Сохранено до обрыва: {saved_lessons} занятий")
+        alert_parse_error('socio-subgroups',
+                          f"Прогон оборван: {e}\n"
+                          f"Сохранено до обрыва: {saved_lessons} занятий")
+        return
+
+    status, message, problems = _compose(parser, [])
+    log_parse(conn, 'socio-subgroups', status,
+              lessons_count=saved_lessons, groups_count=saved_subgroups,
+              message=message)
+    conn.close()
+
+    print(f"\n[subgroups] Подгрупп с собственными занятиями: {saved_subgroups} "
+          f"из {result['subgroups']}")
+    print(f"[subgroups] Записано занятий, которых нет у группы: {saved_lessons}")
+    _report('subgroups', parser, problems)
+
+    if problems:
+        alert_parse_warning('socio-subgroups', '\n'.join(problems))
+    else:
+        alert_parse_ok('socio-subgroups', saved_subgroups, saved_lessons)
 
 
 # ======= Студенты и преподаватели из персональных расписаний =======
@@ -377,16 +449,24 @@ def main():
     args = sys.argv[1:]
     commands = [a for a in args if not a.startswith('--')]
 
+    if '--help' in args or '-h' in args:
+        print(__doc__)
+        return
+
     if '--test' in args:
         run_test()
     elif 'teachers' in commands:
         run_teachers()
+    elif 'subgroups' in commands:
+        run_subgroups()
     elif 'students' in commands:
         run_students()
     elif 'socio' in commands:
         run_socio()
-    elif not commands:
+    elif not args:
         run_socio()
+        print("\n" + "=" * 60 + "\n")
+        run_subgroups()          # после socio: сохраняет только то, чего нет у группы
         print("\n" + "=" * 60 + "\n")
         run_students()
         print("\n" + "=" * 60 + "\n")

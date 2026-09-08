@@ -12,7 +12,33 @@ def get_connection() -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     _register_functions(conn)
     _create_tables(conn)
+    _migrate(conn)
     return conn
+
+
+# Колонки, добавленные после первого выпуска. Для новых баз они уже есть
+# в _create_tables, для существующих добавляются здесь.
+_ADDED_COLUMNS = (
+    ('lessons', 'subgroup', "TEXT DEFAULT ''"),
+    ('users', 'student_id', 'INTEGER'),
+)
+
+
+def _migrate(conn: sqlite3.Connection):
+    """
+    Дописать недостающие колонки в уже существующую базу.
+
+    Раньше это делалось ALTER'ом в try/except прямо посреди работы бота
+    (в bind_student), то есть при каждой привязке студента. Теперь один раз
+    при открытии соединения и по явному списку.
+    """
+    for table, column, decl in _ADDED_COLUMNS:
+        existing = {r['name'] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if not existing:
+            continue          # таблицы ещё нет — её создаст _create_tables
+        if column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+            conn.commit()
 
 
 def _register_functions(conn: sqlite3.Connection):
@@ -60,6 +86,9 @@ def _create_tables(conn: sqlite3.Connection):
             lesson_type_full TEXT,
             room TEXT,
             teacher TEXT,
+            -- Пустая строка — обычное занятие всей группы.
+            -- Непустая — поток подгруппы (языки): «с101-3».
+            subgroup TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (group_id) REFERENCES groups_(id)
         );
@@ -184,7 +213,8 @@ def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = 
     placeholders = ','.join('?' for _ in dates)
 
     existing = conn.execute(
-        f"SELECT COUNT(*) AS c FROM lessons WHERE group_id = ? AND date IN ({placeholders})",
+        f"""SELECT COUNT(*) AS c FROM lessons
+             WHERE group_id = ? AND subgroup = '' AND date IN ({placeholders})""",
         [group_id] + dates
     ).fetchone()['c']
 
@@ -195,24 +225,78 @@ def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = 
             'reason': f"пришло {len(lessons)} занятий против {existing} в базе за те же даты",
         }
 
+    # Только занятия самой группы: расписание подгрупп собирается
+    # отдельным проходом и стирать его тут нельзя
     conn.execute(
-        f"DELETE FROM lessons WHERE group_id = ? AND date IN ({placeholders})",
+        f"""DELETE FROM lessons
+             WHERE group_id = ? AND subgroup = '' AND date IN ({placeholders})""",
         [group_id] + dates
     )
+    _insert_lessons(conn, group_id, lessons, subgroup='')
+    conn.commit()
+    return {'written': len(lessons), 'skipped': False, 'reason': ''}
+
+
+def _insert_lessons(conn, group_id: int, lessons: list, subgroup: str):
     conn.executemany(
         """INSERT INTO lessons
            (group_id, date, pair_number, time_start, time_end,
-            subject, subject_abbr, lesson_type, lesson_type_full, room, teacher)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            subject, subject_abbr, lesson_type, lesson_type_full, room,
+            teacher, subgroup)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         [
             (group_id, l['date'], l['pair_number'], l['time_start'], l['time_end'],
              l['subject'], l.get('subject_abbr', ''), l.get('lesson_type', ''),
-             l.get('lesson_type_full', ''), l.get('room', ''), l.get('teacher', ''))
+             l.get('lesson_type_full', ''), l.get('room', ''), l.get('teacher', ''),
+             subgroup)
             for l in lessons
         ]
     )
+
+
+def save_subgroup_lessons(conn, group_id: int, subgroup: str,
+                          lessons: list, only_new: bool = True) -> int:
+    """
+    Записать занятия одного потока подгруппы (языки).
+
+    Отдельно от save_lessons и намеренно: занятия группы и занятия её
+    подгрупп живут в одной таблице, но собираются разными проходами.
+    Если бы удаление шло по одним только датам, второй проход стирал бы
+    результат первого. Поэтому чистим строго свою подгруппу.
+
+    only_new: страница подгруппы показывает не только её язык, но и всё
+    обычное расписание группы. Записывать это целиком — значит показать
+    человеку каждую пару дважды. Поэтому по умолчанию оставляем только то,
+    чего у группы нет. Требует, чтобы расписание группы уже лежало в базе:
+    проход по подгруппам идёт ПОСЛЕ socio.
+    """
+    if not subgroup:
+        raise ValueError("save_subgroup_lessons: нужна непустая метка подгруппы")
+    if not lessons:
+        return 0
+
+    if only_new:
+        own = {
+            (r['date'], r['pair_number'], r['subject'])
+            for r in conn.execute(
+                "SELECT date, pair_number, subject FROM lessons "
+                "WHERE group_id = ? AND subgroup = ''", (group_id,))
+        }
+        lessons = [l for l in lessons
+                   if (l['date'], l['pair_number'], l['subject']) not in own]
+        if not lessons:
+            return 0
+
+    dates = sorted(set(l['date'] for l in lessons))
+    placeholders = ','.join('?' for _ in dates)
+    conn.execute(
+        f"""DELETE FROM lessons
+             WHERE group_id = ? AND subgroup = ? AND date IN ({placeholders})""",
+        [group_id, subgroup] + dates
+    )
+    _insert_lessons(conn, group_id, lessons, subgroup=subgroup)
     conn.commit()
-    return {'written': len(lessons), 'skipped': False, 'reason': ''}
+    return len(lessons)
 
 
 def log_parse(conn, faculty_code, status, lessons_count=0, groups_count=0, message=''):
@@ -294,9 +378,13 @@ def set_user_group(conn, chat_id: int, group_id: int):
 
 def get_conflicting_subjects(conn, group_id: int) -> list[dict]:
     """Предметы, которые стоят на одну пару (предметы по выбору)."""
+    # Языковые потоки исключены: они всегда стоят на одной паре друг с
+    # другом и иначе выглядели бы как предметы по выбору, которых человек
+    # не выбирал
     rows = conn.execute(
         """SELECT date, pair_number, time_start, subject, subject_abbr, room, lesson_type, teacher
-           FROM lessons WHERE group_id = ? AND date >= date('now')
+           FROM lessons
+          WHERE group_id = ? AND subgroup = '' AND date >= date('now')
            ORDER BY date, pair_number, subject""",
         (group_id,)
     ).fetchall()
