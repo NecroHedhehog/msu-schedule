@@ -179,8 +179,35 @@ class TestStreamFormatting(unittest.TestCase):
     def test_block_names_the_stream(self):
         text = format_streams([self.STREAM])
         self.assertIn('Не у всех', text)
-        self.assertIn('с101-3', text)
+        self.assertIn('Английский язык', text)
         self.assertIn('Петрова А.А.', text)
+        self.assertIn('[3]', text, "номер потока")
+        self.assertNotIn('с101-3', text, "код группы человек и так знает")
+
+    def test_grouped_by_subject(self):
+        """
+        Плоским списком выходило до десяти строк на день: у группы бывает
+        семь потоков, и английский идёт сразу у пяти преподавателей.
+        """
+        streams = [
+            dict(self.STREAM, subgroup='с101-2', teacher='Рассошенко Ж.В.', room='320'),
+            dict(self.STREAM, subgroup='с101-6', teacher='Казимова Г.А.', room='317'),
+            dict(self.STREAM, subject='Немецкий язык', subject_abbr='НЕМ',
+                 subgroup='с101-7', teacher='Смирнова М.Д.', room='318'),
+        ]
+        text = format_streams(streams)
+
+        self.assertEqual(text.count('Английский язык'), 1, "предмет назван один раз")
+        self.assertEqual(text.count('Немецкий язык'), 1)
+        self.assertIn('[2]', text)
+        self.assertIn('[7]', text)
+
+    def test_identical_rows_collapse(self):
+        """Два потока в одной аудитории у одного преподавателя — одна строка."""
+        same = [dict(self.STREAM, subgroup='с101-1'),
+                dict(self.STREAM, subgroup='с101-2')]
+        text = format_streams(same)
+        self.assertEqual(text.count('Петрова А.А.'), 1)
 
     def test_day_shows_both_sections(self):
         text = format_day_schedule([self.MAIN, self.STREAM], date(2026, 9, 8),
@@ -211,7 +238,8 @@ class TestStreamFormatting(unittest.TestCase):
         rows = get_lessons_for_date(conn, 1, '2026-09-08')
         text = format_day_schedule(rows, date(2026, 9, 8), with_ad=False)
         self.assertIn('Не у всех', text)
-        self.assertIn('с101-3', text)
+        self.assertIn('Английский язык', text)
+        self.assertIn('[3]', text)
         conn.close()
 
 

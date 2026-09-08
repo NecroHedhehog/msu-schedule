@@ -50,23 +50,46 @@ def split_streams(lessons: list) -> tuple:
     return main, streams
 
 
+def stream_number(subgroup: str) -> str:
+    """«с101-3» → «3». Код группы человек и так знает."""
+    return subgroup.rsplit('-', 1)[-1].strip() if '-' in subgroup else subgroup
+
+
 def format_streams(streams: list) -> str:
-    """Блок языковых потоков: человек сам знает, в каком он."""
+    """
+    Блок потоков: сгруппирован по предмету.
+
+    Плоским списком получалось до десяти строк на день — у группы бывает
+    семь потоков, и английский идёт сразу у пяти преподавателей. Сгруппировав
+    по предмету, человек сначала находит свой язык, а потом свой поток.
+    """
     if not streams:
         return ''
 
-    lines = ["\n  ─────────", "  🔤 <b>Не у всех</b> — языковые потоки:"]
-    for l in sorted(streams, key=lambda x: (x['pair_number'], field(x, 'subgroup'))):
-        emoji = TYPE_EMOJI.get(field(l, 'lesson_type'), '📌')
-        name = field(l, 'subject_abbr') or l['subject']
-        if len(name) > 22:
-            name = name[:19] + '...'
-        room = field(l, 'room') or '?'
-        teacher = field(l, 'teacher')
-        tail = f" · {teacher}" if teacher else ''
-        lines.append(
-            f"  {emoji} {l['pair_number']} ({l['time_start']}–{l['time_end']}) "
-            f"<b>{name}</b> {room}{tail}  <i>{field(l, 'subgroup')}</i>")
+    by_subject = {}
+    for l in streams:
+        by_subject.setdefault(l['subject'], []).append(l)
+
+    lines = ["", "  ─────────", "  🔤 <b>Не у всех</b>"]
+    for subject in sorted(by_subject):
+        lines.append(f"  · <b>{subject}</b>")
+
+        seen = set()
+        rows = sorted(by_subject[subject],
+                      key=lambda x: (x['pair_number'], stream_number(field(x, 'subgroup'))))
+        for l in rows:
+            room = field(l, 'room') or '?'
+            teacher = field(l, 'teacher')
+            key = (l['pair_number'], l['time_start'], room, teacher)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            tail = f" {teacher}" if teacher else ''
+            lines.append(
+                f"     {l['pair_number']} ({l['time_start']}–{l['time_end']}) "
+                f"{room}{tail}  <i>[{stream_number(field(l, 'subgroup'))}]</i>")
+
     return '\n'.join(lines)
 
 
