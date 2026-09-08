@@ -13,6 +13,8 @@ MONTHS_RU = [
     'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
 ]
 
+WEEKDAYS_SHORT = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс']
+
 TYPE_EMOJI = {
     'Лк': '📗', 'Сем': '📙', 'Зч': '📝',
     'Экз': '🔴', 'Пр': '📘', 'Пз': '📘', 'Конс': '💬', 'Доп': '📎',
@@ -22,6 +24,17 @@ TYPE_EMOJI = {
 def format_date_header(d: date) -> str:
     weekday = WEEKDAYS_RU[d.weekday()]
     return f"📅 <b>{weekday}, {d.day} {MONTHS_RU[d.month]}</b>"
+
+
+def format_slots(slots, limit: int = 2) -> str:
+    """
+    «пн 10:40, ср 12:20» — по этому человек и узнаёт своё занятие,
+    когда один преподаватель ведёт два потока.
+    """
+    parts = [f"{WEEKDAYS_SHORT[wd]} {time}" for wd, time in slots[:limit]]
+    if len(slots) > limit:
+        parts.append('…')
+    return ', '.join(parts)
 
 
 def field(lesson, name: str, default=''):
@@ -71,9 +84,12 @@ def apply_stream_choice(streams: list, choice: dict = None) -> list:
 
     subject = choice.get('subject')
     teacher = (choice.get('teacher') or '').strip()
+    subgroup = (choice.get('subgroup') or '').strip()
+
     return [l for l in streams
             if l['subject'] == subject
-            and (not teacher or teacher in field(l, 'teacher'))]
+            and (not teacher or teacher in field(l, 'teacher'))
+            and (not subgroup or field(l, 'subgroup') == subgroup)]
 
 
 def format_streams(streams: list, choice: dict = None) -> str:

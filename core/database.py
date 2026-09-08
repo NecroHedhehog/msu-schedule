@@ -20,6 +20,7 @@ def get_connection() -> sqlite3.Connection:
 # в _create_tables, для существующих добавляются здесь.
 _ADDED_COLUMNS = (
     ('lessons', 'subgroup', "TEXT DEFAULT ''"),
+    ('user_streams', 'subgroup', "TEXT DEFAULT ''"),
     ('users', 'student_id', 'INTEGER'),
 )
 
@@ -151,6 +152,7 @@ def _create_tables(conn: sqlite3.Connection):
             group_id INTEGER NOT NULL,
             subject TEXT NOT NULL,
             teacher TEXT DEFAULT '',
+            subgroup TEXT DEFAULT '',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(chat_id, group_id)
         );
@@ -492,13 +494,54 @@ def get_stream_teachers(conn, group_id: int, subject: str) -> list:
             GROUP BY teacher ORDER BY n DESC""", (group_id, subject))]
 
 
-def set_user_stream(conn, chat_id: int, group_id: int, subject: str, teacher: str = ''):
+def get_stream_variants(conn, group_id: int, subject: str) -> list:
+    """
+    Конкретные потоки этого языка: [{subgroup, teacher, lessons, slots}, ...].
+
+    Один преподаватель нередко ведёт два потока — по данным на сентябрь 2026
+    таких сочетаний 18 из 50. Поэтому в списке для выбора нужны сами потоки,
+    а не только преподаватели, и различать их приходится расписанием.
+
+    slots: [(день недели по-питоновски, время начала), ...] — по ним человек
+    и узнаёт своё занятие.
+    """
+    rows = conn.execute(
+        """SELECT subgroup, teacher, COUNT(*) AS n
+             FROM lessons
+            WHERE group_id = ? AND subject = ? AND subgroup != ''
+              AND date >= date('now')
+            GROUP BY subgroup, teacher
+            ORDER BY subgroup""", (group_id, subject)).fetchall()
+
+    variants = []
+    for r in rows:
+        slots = conn.execute(
+            """SELECT DISTINCT CAST(strftime('%w', date) AS INTEGER) AS wd, time_start
+                 FROM lessons
+                WHERE group_id = ? AND subject = ? AND subgroup = ?
+                  AND date >= date('now')
+                ORDER BY wd, time_start""",
+            (group_id, subject, r['subgroup'])).fetchall()
+        variants.append({
+            'subgroup': r['subgroup'],
+            'teacher': r['teacher'] or '',
+            'lessons': r['n'],
+            # strftime('%w') считает с воскресенья, питон — с понедельника
+            'slots': [((x['wd'] + 6) % 7, x['time_start']) for x in slots],
+        })
+    return variants
+
+
+def set_user_stream(conn, chat_id: int, group_id: int, subject: str,
+                    teacher: str = '', subgroup: str = ''):
     conn.execute(
-        """INSERT INTO user_streams (chat_id, group_id, subject, teacher)
-           VALUES (?, ?, ?, ?)
+        """INSERT INTO user_streams (chat_id, group_id, subject, teacher, subgroup)
+           VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(chat_id, group_id) DO UPDATE SET
-               subject = excluded.subject, teacher = excluded.teacher""",
-        (chat_id, group_id, subject, teacher))
+               subject = excluded.subject,
+               teacher = excluded.teacher,
+               subgroup = excluded.subgroup""",
+        (chat_id, group_id, subject, teacher, subgroup))
     conn.commit()
 
 
@@ -521,8 +564,8 @@ def resolve_user_stream(conn, chat_id: int, group_id: int) -> dict | None:
     выбор сам скатывается до уровня языка, а не пропадает целиком.
     """
     row = conn.execute(
-        "SELECT subject, teacher FROM user_streams WHERE chat_id = ? AND group_id = ?",
-        (chat_id, group_id)).fetchone()
+        """SELECT subject, teacher, subgroup FROM user_streams
+            WHERE chat_id = ? AND group_id = ?""", (chat_id, group_id)).fetchone()
     if not row:
         return None
 
@@ -536,7 +579,13 @@ def resolve_user_stream(conn, chat_id: int, group_id: int) -> dict | None:
         if teacher not in teachers:
             teacher = ''     # преподаватель сменился — остаёмся на языке
 
-    return {'subject': row['subject'], 'teacher': teacher}
+    subgroup = row['subgroup'] or ''
+    if subgroup:
+        live = {v['subgroup'] for v in get_stream_variants(conn, group_id, row['subject'])}
+        if subgroup not in live:
+            subgroup = ''    # номер потока прожил семестр — остаёмся на преподавателе
+
+    return {'subject': row['subject'], 'teacher': teacher, 'subgroup': subgroup}
 
 
 # === Аналитика ===

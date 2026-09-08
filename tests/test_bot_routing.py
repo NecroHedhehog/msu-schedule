@@ -230,18 +230,21 @@ class LanguagePickerTest(BotTestCase):
     """
 
     def seed(self, conn):
+        # Захарова ведёт два потока — как на живом сайте: там таких
+        # сочетаний 18 из 50, и различить их можно только расписанием
         streams = [
-            ('Английский язык', 'Рассошенко Ж.В.', 'с403-2', 2),
-            ('Английский язык', 'Казимова Г.А.', 'с403-6', 4),
-            ('Немецкий язык', 'Шмидт А.А.', 'с403-7', 3),
+            ('Английский язык', 'Рассошенко Ж.В.', 'с403-2', 2, '2099-01-15'),
+            ('Английский язык', 'Захарова Д.С.', 'с403-3', 3, '2099-01-15'),
+            ('Английский язык', 'Захарова Д.С.', 'с403-4', 4, '2099-01-16'),
+            ('Немецкий язык', 'Шмидт А.А.', 'с403-7', 3, '2099-01-15'),
         ]
-        for subject, teacher, subgroup, pair in streams:
+        for subject, teacher, subgroup, pair, day in streams:
             conn.execute(
                 """INSERT INTO lessons
                    (group_id,date,pair_number,time_start,time_end,
                     subject,room,teacher,subgroup)
-                   VALUES (1,'2099-01-15',?,'10:40','12:10',?,'320',?,?)""",
-                (pair, subject, teacher, subgroup))
+                   VALUES (1,?,?,'10:40','12:10',?,'320',?,?)""",
+                (day, pair, subject, teacher, subgroup))
 
     async def pick_group(self):
         await self.send_text("403")
@@ -263,19 +266,73 @@ class LanguagePickerTest(BotTestCase):
         self.assertIn('Немецкий язык', text)
         self.assertIn('Твой язык', text)
 
-    async def test_two_step_for_english(self):
+    async def test_language_button_works_like_command(self):
+        await self.pick_group()
+        text, buttons = await self.send_text(self.bot_main.LANG_BUTTON)
+        self.assertIn('Английский язык', buttons)
+
+    async def test_lists_streams_not_just_teachers(self):
         await self.pick_group()
         await self.send_text("/язык")
         shash = self.bot_main.subject_hash('Английский язык')
 
         text, buttons = await self.press(f"lang:s:{shash}")
-        self.assertTrue(any('Рассошенко' in b for b in buttons))
-        self.assertTrue(any('Казимова' in b for b in buttons))
-        self.assertIn('Любой преподаватель', buttons)
 
-        thash = self.bot_main.subject_hash('Казимова Г.А.')
-        text, _ = await self.press(f"lang:t:{shash}:{thash}")
-        self.assertIn('Казимова Г.А.', text)
+        self.assertEqual(len(buttons), 4, "три потока + «любой преподаватель»")
+        self.assertIn('Любой преподаватель', buttons)
+        # У Рассошенко один поток — расписание в кнопке лишнее
+        self.assertIn('Рассошенко Ж.В.', buttons)
+        # У Захаровой два — их надо различить временем
+        zaharova = [b for b in buttons if b.startswith('Захарова')]
+        self.assertEqual(len(zaharova), 2)
+        for b in zaharova:
+            self.assertIn('·', b, "у неоднозначного преподавателя показано время")
+        self.assertNotEqual(zaharova[0], zaharova[1], "кнопки должны различаться")
+
+    async def test_picking_one_of_two_streams_of_same_teacher(self):
+        await self.pick_group()
+        await self.send_text("/язык")
+        shash = self.bot_main.subject_hash('Английский язык')
+        await self.press(f"lang:s:{shash}")
+
+        text, _ = await self.press(f"lang:v:{shash}:{self.bot_main.subject_hash('с403-4')}")
+        self.assertIn('Захарова Д.С.', text)
+
+        conn = db.get_connection()
+        choice = db.resolve_user_stream(conn, self.chat.id, 1)
+        conn.close()
+        self.assertEqual(choice['subgroup'], 'с403-4')
+        self.assertEqual(choice['teacher'], 'Захарова Д.С.')
+
+    async def test_stale_stream_number_degrades_to_teacher(self):
+        """
+        Номер потока живёт один семестр. Когда он исчезает, выбор должен
+        скатиться до преподавателя, а не пропасть.
+        """
+        await self.pick_group()
+        conn = db.get_connection()
+        db.set_user_stream(conn, self.chat.id, 1,
+                           'Английский язык', 'Захарова Д.С.', 'с403-99')
+        choice = db.resolve_user_stream(conn, self.chat.id, 1)
+        conn.close()
+
+        self.assertEqual(choice['subject'], 'Английский язык')
+        self.assertEqual(choice['teacher'], 'Захарова Д.С.')
+        self.assertEqual(choice['subgroup'], '', "исчезнувший номер отброшен")
+
+    async def test_any_teacher_stores_subject_only(self):
+        await self.pick_group()
+        await self.send_text("/язык")
+        shash = self.bot_main.subject_hash('Английский язык')
+        await self.press(f"lang:s:{shash}")
+        text, _ = await self.press(f"lang:any:{shash}")
+
+        self.assertIn('любой преподаватель', text.lower())
+        conn = db.get_connection()
+        choice = db.resolve_user_stream(conn, self.chat.id, 1)
+        conn.close()
+        self.assertEqual(choice['teacher'], '')
+        self.assertEqual(choice['subgroup'], '')
 
     async def test_choice_survives_and_filters(self):
         await self.pick_group()
@@ -299,6 +356,26 @@ class LanguagePickerTest(BotTestCase):
         conn = db.get_connection()
         self.assertIsNone(db.resolve_user_stream(conn, self.chat.id, 1))
         conn.close()
+
+    async def test_guide_covers_both_features(self):
+        """Гайд должен объяснять и предметы по выбору, и языки."""
+        await self.pick_group()
+        text, _ = await self.send_text("/помощь")
+
+        self.assertIn('предметы по выбору', text.lower())
+        self.assertIn('/язык', text)
+        self.assertIn('не у всех', text.lower())
+        self.assertNotIn('языковых потоков нет', text, "у этой группы потоки есть")
+
+    async def test_guide_notes_when_group_has_no_streams(self):
+        conn = db.get_connection()
+        conn.execute("DELETE FROM lessons WHERE subgroup != ''")
+        conn.commit()
+        conn.close()
+
+        await self.pick_group()
+        text, _ = await self.send_text("/помощь")
+        self.assertIn('языковых потоков нет', text)
 
     async def test_stale_choice_is_ignored(self):
         """

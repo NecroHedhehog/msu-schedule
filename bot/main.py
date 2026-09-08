@@ -28,10 +28,12 @@ from core.database import (
     get_lessons_for_date, get_lessons_for_week, get_date_range,
     get_conflicting_subjects, get_user_subjects, toggle_user_subject,
     track_user, log_action, get_stats,
-    get_stream_subjects, get_stream_teachers,
+    get_stream_subjects, get_stream_variants,
     set_user_stream, clear_user_stream, resolve_user_stream,
 )
-from bot.formatting import format_day_schedule, format_week_schedule, format_subject_button
+from bot.formatting import (
+    format_day_schedule, format_week_schedule, format_subject_button, format_slots,
+)
 from core.database import find_groups_by_code
 from core.db_students import (
     get_students_by_name, find_teachers_by_name,
@@ -59,27 +61,57 @@ class Search(StatesGroup):
 
 # === Клавиатура ===
 
-def build_main_keyboard():
+LANG_BUTTON = "🔤 Мой язык"
+
+
+def build_main_keyboard(with_language: bool = False):
     buttons = [
         [KeyboardButton(text="📅 Сегодня"), KeyboardButton(text="📆 Завтра")],
         [KeyboardButton(text="🗓 Неделя"), KeyboardButton(text="📋 Предметы")],
         [KeyboardButton(text="👨‍🏫 Преподаватель"), KeyboardButton(text="👥 Сменить группу")],
     ]
     bottom_row = []
+    if with_language:
+        bottom_row.append(KeyboardButton(text=LANG_BUTTON))
     if AD_FULL_TEXT:
         bottom_row.append(KeyboardButton(text=AD_BUTTON_LABEL))
     buttons.append(bottom_row)
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
+
 MAIN_KEYBOARD = build_main_keyboard()
+LANG_KEYBOARD = build_main_keyboard(with_language=True)
 
 # Тексты кнопок нижней клавиатуры: их не надо принимать за поисковый запрос
 MAIN_BUTTON_TEXTS = {
     "📅 Сегодня", "📆 Завтра", "🗓 Неделя",
-    "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель",
+    "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель", LANG_BUTTON,
 }
 if AD_BUTTON_LABEL:
     MAIN_BUTTON_TEXTS.add(AD_BUTTON_LABEL)
+
+
+def keyboard_for(chat_id: int):
+    """
+    Клавиатура под конкретного человека.
+
+    Кнопка языка показывается только тем, у чьей группы есть языковые
+    потоки — это девять групп из сорока девяти. Остальным она была бы
+    кнопкой, которая всегда отвечает «у тебя такого нет».
+    """
+    if not chat_id:
+        return MAIN_KEYBOARD
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            """SELECT 1 FROM subscriptions s
+                 JOIN lessons l ON l.group_id = s.group_id
+                WHERE s.chat_id = ? AND l.subgroup != '' AND l.date >= date('now')
+                LIMIT 1""", (chat_id,)).fetchone()
+        conn.close()
+        return LANG_KEYBOARD if row else MAIN_KEYBOARD
+    except Exception:
+        return MAIN_KEYBOARD
 
 
 # === Утилиты ===
@@ -259,7 +291,7 @@ async def check_group(message_or_callback) -> dict | None:
     if not user:
         await answer(
             "⚠️ Сначала выбери группу!\nНажми <b>👥 Сменить группу</b> или напиши номер.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(chat_id))
         return None
     return user
 
@@ -279,7 +311,7 @@ async def cmd_start(message: Message, state: FSMContext):
         await message.answer(
             f"👋 С возвращением! Твоя группа: <b>{user['group_code']}</b>\n\n"
             f"Используй кнопки внизу 👇",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
     else:
         await message.answer(
             "👋 Привет! Я бот расписания МГУ.\n\nДля начала выбери свою группу:",
@@ -380,7 +412,7 @@ async def on_bind_student(callback: CallbackQuery, state: FSMContext):
     text += "\nИспользуй кнопки внизу 👇"
 
     await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
-    await callback.message.answer("Готово!", reply_markup=MAIN_KEYBOARD)
+    await callback.message.answer("Готово!", reply_markup=keyboard_for(callback.message.chat.id))
     await callback.answer()
 
 @router.callback_query(F.data == 'back_to_dept')
@@ -498,7 +530,7 @@ async def on_group_select(callback: CallbackQuery, state: FSMContext):
     text += "\nИспользуй кнопки внизу 👇"
 
     await callback.message.edit_text(text, parse_mode=ParseMode.HTML)
-    await callback.message.answer("Готово!", reply_markup=MAIN_KEYBOARD)
+    await callback.message.answer("Готово!", reply_markup=keyboard_for(callback.message.chat.id))
     await callback.answer()
 
 
@@ -524,7 +556,7 @@ async def cmd_today(message: Message, state: FSMContext):
     if d.weekday() >= 5 and not lessons:
         text += "\n\nНажми <b>🗓 Неделя</b> — покажу следующую."
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(F.text == "📆 Завтра")
@@ -544,7 +576,7 @@ async def cmd_tomorrow(message: Message, state: FSMContext):
     text += format_day_schedule(lessons, d, data_range=data_range,
                                 stream_choice=stream_choice)
 
-    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(F.text == "🗓 Неделя")
@@ -589,7 +621,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
         else:
             await message_or_callback.answer(
                 header + "⬇️ Расписание по дням:",
-                parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+                parse_mode=ParseMode.HTML, reply_markup=keyboard_for(chat_id))
             send = message_or_callback.answer
 
         for d in sorted(days.keys()):
@@ -654,7 +686,7 @@ async def cmd_subjects(message: Message, state: FSMContext):
     conn.close()
 
     if not conflicts:
-        await message.answer("✅ В расписании нет предметов по выбору!", reply_markup=MAIN_KEYBOARD)
+        await message.answer("✅ В расписании нет предметов по выбору!", reply_markup=keyboard_for(message.chat.id))
         return
 
     buttons = []
@@ -746,6 +778,7 @@ async def on_subject_toggle(callback: CallbackQuery):
 # больше нет, фильтр молча выключается и показываются все потоки.
 
 
+@router.message(F.text == LANG_BUTTON)
 @router.message(Command('язык', 'language', 'lang'))
 async def cmd_language(message: Message, state: FSMContext):
     await state.clear()
@@ -763,7 +796,7 @@ async def cmd_language(message: Message, state: FSMContext):
         await message.answer(
             "🔤 У твоей группы нет языковых потоков.\n"
             "Языки идут только на первом курсе.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
         return
 
     buttons = [[InlineKeyboardButton(
@@ -803,6 +836,13 @@ async def on_lang_all(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('lang:s:'))
 async def on_lang_subject(callback: CallbackQuery):
+    """
+    Второй шаг: конкретные потоки, а не просто преподаватели.
+
+    Один преподаватель нередко ведёт два потока — на сентябрь 2026 таких
+    сочетаний 18 из 50. Поэтому в списке сами потоки, а различаются они
+    расписанием: «Захарова Д.С. · пн 15:40, ср 12:20».
+    """
     user = await check_group(callback)
     if not user:
         return
@@ -816,12 +856,13 @@ async def on_lang_subject(callback: CallbackQuery):
         await callback.answer("Язык не найден, попробуй /язык заново")
         return
 
-    teachers = get_stream_teachers(conn, user['group_id'], subject)
+    variants = get_stream_variants(conn, user['group_id'], subject)
 
-    # Один преподаватель или ни одного — второй шаг не нужен
-    if len(teachers) <= 1:
-        set_user_stream(conn, callback.message.chat.id, user['group_id'], subject,
-                        teachers[0][0] if teachers else '')
+    # Один поток — выбирать нечего
+    if len(variants) <= 1:
+        v = variants[0] if variants else {'teacher': '', 'subgroup': ''}
+        set_user_stream(conn, callback.message.chat.id, user['group_id'],
+                        subject, v['teacher'], v['subgroup'])
         conn.close()
         do_track_cb(callback, 'language_set', subject)
         await callback.message.edit_text(
@@ -833,17 +874,61 @@ async def on_lang_subject(callback: CallbackQuery):
 
     conn.close()
 
-    buttons = [[InlineKeyboardButton(
-        text=f"{name} ({n})",
-        callback_data=f"lang:t:{wanted}:{subject_hash(name)}")] for name, n in teachers]
+    # Уточняем расписанием только тех преподавателей, у кого больше
+    # одного потока: остальным лишний хвост в кнопке ни к чему
+    counts = {}
+    for v in variants:
+        counts[v['teacher']] = counts.get(v['teacher'], 0) + 1
+
+    buttons = []
+    for v in variants:
+        label = v['teacher'] or 'без преподавателя'
+        if counts.get(v['teacher'], 0) > 1 and v['slots']:
+            label += f" · {format_slots(v['slots'])}"
+        buttons.append([InlineKeyboardButton(
+            text=label,
+            callback_data=f"lang:v:{wanted}:{subject_hash(v['subgroup'])}")])
     buttons.append([InlineKeyboardButton(
         text="Любой преподаватель", callback_data=f"lang:any:{wanted}")])
 
     await callback.message.edit_text(
-        f"🔤 <b>{subject}</b>\n\nУ кого занимаешься? В скобках — сколько занятий "
-        f"у преподавателя до конца собранного расписания.",
+        f"🔤 <b>{subject}</b>\n\nВыбери свой поток. Где преподаватель ведёт "
+        f"несколько групп, рядом показано время занятий — по нему и узнаешь своё.",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('lang:v:'))
+async def on_lang_variant(callback: CallbackQuery):
+    user = await check_group(callback)
+    if not user:
+        return
+    _, _, shash, vhash = callback.data.split(':', 3)
+
+    conn = get_connection()
+    subject = next((s for s, _ in get_stream_subjects(conn, user['group_id'])
+                    if subject_hash(s) == shash), None)
+    variant = None
+    if subject:
+        variant = next((v for v in get_stream_variants(conn, user['group_id'], subject)
+                        if subject_hash(v['subgroup']) == vhash), None)
+    if subject and variant:
+        set_user_stream(conn, callback.message.chat.id, user['group_id'],
+                        subject, variant['teacher'], variant['subgroup'])
+    conn.close()
+
+    if not (subject and variant):
+        await callback.answer("Поток не найден, попробуй /язык заново")
+        return
+
+    do_track_cb(callback, 'language_set', f"{subject} / {variant['subgroup']}")
+    when = format_slots(variant['slots'], limit=3)
+    await callback.message.edit_text(
+        f"✅ Твой поток: <b>{subject}</b> — {variant['teacher'] or 'без преподавателя'}\n"
+        f"   {when}\n\n"
+        f"В расписании останется только он. Изменить — /язык",
+        parse_mode=ParseMode.HTML)
     await callback.answer()
 
 
@@ -872,36 +957,6 @@ async def on_lang_any_teacher(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith('lang:t:'))
-async def on_lang_teacher(callback: CallbackQuery):
-    user = await check_group(callback)
-    if not user:
-        return
-    _, _, shash, thash = callback.data.split(':', 3)
-
-    conn = get_connection()
-    subject = next((s for s, _ in get_stream_subjects(conn, user['group_id'])
-                    if subject_hash(s) == shash), None)
-    teacher = None
-    if subject:
-        teacher = next((t for t, _ in get_stream_teachers(conn, user['group_id'], subject)
-                        if subject_hash(t) == thash), None)
-    if subject and teacher:
-        set_user_stream(conn, callback.message.chat.id, user['group_id'], subject, teacher)
-    conn.close()
-
-    if not (subject and teacher):
-        await callback.answer("Поток не найден, попробуй /язык заново")
-        return
-
-    do_track_cb(callback, 'language_set', f"{subject} / {teacher}")
-    await callback.message.edit_text(
-        f"✅ Твой поток: <b>{subject}</b> — {teacher}\n\n"
-        f"В расписании останется только он. Изменить — /язык",
-        parse_mode=ParseMode.HTML)
-    await callback.answer()
-
-
 # === Реклама / Полезное ===
 
 @router.message(F.text == AD_BUTTON_LABEL)
@@ -910,7 +965,7 @@ async def cmd_ad(message: Message, state: FSMContext):
     if not AD_FULL_TEXT:
         return
     do_track(message, 'ad_click')
-    await message.answer(AD_FULL_TEXT, parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+    await message.answer(AD_FULL_TEXT, parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 # === Статистика (только для админа) ===
@@ -934,7 +989,7 @@ async def cmd_stats(message: Message, state: FSMContext):
         f"Действий сегодня: {s['today_actions']}\n"
         f"Клики по рекламе: {s['ad_clicks']}\n\n"
         f"<b>Топ групп:</b>\n{top or '  нет данных'}",
-        parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+        parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 # === Расписание преподавателя ===
 
@@ -945,7 +1000,7 @@ async def cmd_teacher_start(message: Message, state: FSMContext):
     await message.answer(
         "👨‍🏫 Напиши фамилию преподавателя (или первые буквы):",
         parse_mode=ParseMode.HTML,
-        reply_markup=MAIN_KEYBOARD,
+        reply_markup=keyboard_for(message.chat.id),
     )
 
 
@@ -1024,21 +1079,74 @@ async def cmd_change_group(message: Message, state: FSMContext):
     await show_department_selection(message)
 
 
-@router.message(Command('помощь', 'help'))
+@router.message(Command('помощь', 'help', 'гайд', 'guide'))
 async def cmd_help(message: Message, state: FSMContext):
     await state.clear()
     do_track(message, 'help')
-    await message.answer(
-        "📌 <b>Как пользоваться:</b>\n\n"
-        "Используй кнопки внизу экрана.\n\n"
-        "📅 Сегодня — расписание на сегодня\n"
-        "📆 Завтра — на завтра\n"
-        "🗓 Неделя — на неделю (с навигацией)\n"
-        "📋 Предметы — выбрать свои предметы\n"
-        "👥 Сменить группу — выбрать другую группу\n"
-        "/язык — выбрать свой языковой поток (первый курс)\n\n"
-        "Также можно написать номер группы: <b>403</b>, <b>с403</b>",
-        parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+
+    conn = get_connection()
+    user = get_user_group(conn, message.chat.id)
+    has_streams = bool(conn.execute(
+        """SELECT 1 FROM subscriptions s JOIN lessons l ON l.group_id = s.group_id
+            WHERE s.chat_id = ? AND l.subgroup != '' AND l.date >= date('now') LIMIT 1""",
+        (message.chat.id,)).fetchone()) if user else False
+    conn.close()
+
+    text = (
+        "📖 <b>Как этим пользоваться</b>\n\n"
+
+        "<b>Расписание</b>\n"
+        "📅 Сегодня и 📆 Завтра — на день. Под расписанием кнопки "
+        "«← Вчера» и «Завтра →», можно листать.\n"
+        "🗓 Неделя — вся неделя сразу, с листанием по неделям. "
+        "В выходные показывает следующую.\n\n"
+
+        "<b>📋 Предметы — если у вас есть предметы по выбору</b>\n"
+        "Бывает, что на одну и ту же пару у группы стоят сразу несколько "
+        "предметов: кто-то ходит на один, кто-то на другой. Бот такие пары "
+        "находит сам и предлагает отметить свои.\n"
+        "Отметил — в расписании останутся только твои. Не отметил ничего — "
+        "показываются все, ничего не потеряешь.\n"
+        "Передумал: 📋 Предметы → «🔄 Сбросить всё».\n\n"
+
+        "<b>🔤 Языки — отдельная история</b>\n"
+        "Языки идут не всей группой: часть учит английский, часть немецкий, "
+        "часть французский, и у каждого потока свои преподаватель, время "
+        "и аудитория. В обычном расписании группы таких занятий нет вовсе — "
+        "бот показывает их отдельным блоком «не у всех» под днём.\n"
+        "Чтобы осталось только твоё — /язык (или кнопка 🔤 Мой язык). "
+        "Сначала язык, потом свой поток. Если преподаватель ведёт несколько "
+        "групп, рядом с ним показано время — по нему и узнаешь своё занятие.\n"
+        "Языки есть только на первом курсе, у остальных этой кнопки нет.\n\n"
+
+        "<b>👨‍🏫 Преподаватель</b>\n"
+        "Нажми и напиши фамилию — покажу, где и когда он ведёт "
+        "в ближайшие две недели, и у каких групп. Регистр не важен.\n\n"
+
+        "<b>Как выбрать группу</b>\n"
+        "👥 Сменить группу → отделение → курс → группа.\n"
+        "Или просто напиши номер: <b>403</b>, <b>с403</b>, <b>пп201</b>, "
+        "<b>мг52МКПП</b>.\n"
+        "Есть ещё «🔍 Найти себя по фамилии» — тогда бот сам поставит группу, "
+        "а заодно отметит твои предметы по выбору.\n\n"
+
+        "<b>Если пусто</b>\n"
+        "«🎉 Нет занятий» — выходной или в этот день правда ничего нет.\n"
+        "«📭 Расписание ещё не выложено» — дальше этой даты факультет "
+        "расписание пока не публиковал, бот не виноват.\n\n"
+
+        "<b>Команды</b>\n"
+        "/язык — выбрать свой языковой поток\n"
+        "/группа — сменить группу\n"
+        "/предметы — предметы по выбору\n"
+        "/помощь — этот текст"
+    )
+
+    if user and not has_streams:
+        text += "\n\n<i>У твоей группы языковых потоков нет — раздел про языки не пригодится.</i>"
+
+    await message.answer(text, parse_mode=ParseMode.HTML,
+                         reply_markup=keyboard_for(message.chat.id))
 
 
 # === Поиск: студент, преподаватель, группа ===
@@ -1109,7 +1217,7 @@ async def reply_groups(message: Message, query: str) -> bool:
         await message.answer(
             f"✅ Группа: <b>{user['group_code']}</b>\n"
             f"   {user['faculty_name']}, {user['department']}",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
         return True
 
     buttons = [[InlineKeyboardButton(
@@ -1139,7 +1247,7 @@ async def handled_as_group_code(message: Message, state: FSMContext, text: str) 
     else:
         await message.answer(
             f"🔍 Группа «{text}» не найдена.\nПопробуй <b>👥 Сменить группу</b>.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
     return True
 
 
@@ -1160,7 +1268,7 @@ async def on_teacher_query(message: Message, state: FSMContext):
         await message.answer(
             f"👨‍🏫 Преподаватель «{text}» не найден.\n"
             f"Проверь написание или напиши только фамилию.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(Search.student, F.text & ~F.text.startswith('/'))
@@ -1181,7 +1289,7 @@ async def on_student_query(message: Message, state: FSMContext):
             f"👤 «{text}» в списках не нашлась.\n"
             f"Списки студентов собираются отдельно от расписания и бывают "
             f"неполными — выбери группу через <b>👥 Сменить группу</b>.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(Search.group, F.text & ~F.text.startswith('/'))
@@ -1198,7 +1306,7 @@ async def on_group_query(message: Message, state: FSMContext):
         await message.answer(
             f"🔍 Группа «{text}» не найдена. Попробуй ещё раз или нажми "
             f"<b>👥 Сменить группу</b>.",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(F.text & ~F.text.startswith('/'))
@@ -1221,7 +1329,7 @@ async def on_text_message(message: Message, state: FSMContext):
             await message.answer(
                 f"🔍 Группа «{text}» не найдена.\n"
                 f"Попробуй <b>👥 Сменить группу</b>.",
-                parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+                parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
         return
 
     do_track(message, 'name_query', text)
@@ -1234,7 +1342,7 @@ async def on_text_message(message: Message, state: FSMContext):
             f"Номер группы можно написать прямо так: <b>403</b>, <b>с403</b>, <b>пп201</b>.\n"
             f"Преподавателя — через <b>👨‍🏫 Преподаватель</b>.\n"
             f"Себя — через <b>👥 Сменить группу</b> → «Найти себя по фамилии».",
-            parse_mode=ParseMode.HTML, reply_markup=MAIN_KEYBOARD)
+            parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 # === Запуск ===
