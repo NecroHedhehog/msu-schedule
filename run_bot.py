@@ -15,4 +15,9 @@ import asyncio
 from bot.main import main
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Ctrl+C — это штатная остановка, а не авария:
+        # незачем пугать простыней стектрейса
+        print("\n[bot] Остановлен.")

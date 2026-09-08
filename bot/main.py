@@ -1064,8 +1064,12 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
-    print("[bot] Started. Press Ctrl+C to stop.")
-    await dp.start_polling(bot)
+    print("[bot] Запущен. Ctrl+C — остановить.")
+    try:
+        await dp.start_polling(bot)
+    finally:
+        # Иначе на выходе остаётся незакрытая HTTP-сессия
+        await bot.session.close()
 
 
 if __name__ == '__main__':

@@ -98,3 +98,14 @@ def start(site: FakeSite, body_for):
     thread.start()
     host, port = server.server_address
     return server, f"http://127.0.0.1:{port}"
+
+
+def stop(server):
+    """
+    Остановить сервер и закрыть слушающий сокет.
+
+    Одного shutdown() мало: он останавливает цикл обработки, но сокет
+    остаётся открытым, и Python сыплет ResourceWarning на каждый тест.
+    """
+    server.shutdown()
+    server.server_close()

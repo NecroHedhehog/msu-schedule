@@ -62,7 +62,7 @@ class TestDownloadRetries(ParserTestCase):
         self.site = FakeSite()
         self.server, self.domain = fake_site.start(
             self.site, lambda qs, key: '<p>ok</p>')
-        self.addCleanup(self.server.shutdown)
+        self.addCleanup(fake_site.stop, self.server)
 
     def test_recovers_after_temporary_failures(self):
         self.site.fail_times['index'] = 2      # два раза 503, потом ок
@@ -264,7 +264,7 @@ class TestIncrementalSave(ParserTestCase):
         super().setUp()
         self.site = FakeSite()
         self.server, self.domain = fake_site.start(self.site, self.body_for)
-        self.addCleanup(self.server.shutdown)
+        self.addCleanup(fake_site.stop, self.server)
 
         fd, self.db_path = tempfile.mkstemp(suffix='.db')
         os.close(fd)
