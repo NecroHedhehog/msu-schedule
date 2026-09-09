@@ -82,10 +82,17 @@ def _counter_problems(parser) -> list:
     return problems
 
 
-def _compose(parser, extra: list) -> tuple:
-    """(статус, сообщение для parse_log, полный список проблем)."""
+def _compose(parser, extra: list, note: str = '') -> tuple:
+    """
+    (статус, сообщение для parse_log, полный список проблем).
+
+    note — то, что нужно видеть в журнале, но что проблемой не является:
+    в отличие от extra, на статус не влияет.
+    """
     problems = _counter_problems(parser) + extra
     message = parser.stats_line()
+    if note:
+        message += ' | ' + note
     if extra:
         message += ' | ' + ' | '.join(extra)
     return ('warning' if problems else 'ok'), message, problems
@@ -106,11 +113,12 @@ def run_socio():
 
     saved_groups = 0
     saved_lessons = 0
+    kept_teachers = 0   # имён, перенесённых через перезапись занятий
     thin = []       # группы с подозрительно малым числом занятий
     guarded = []    # группы, где сработала защита от затирания
 
     def on_group(g):
-        nonlocal saved_groups, saved_lessons
+        nonlocal saved_groups, saved_lessons, kept_teachers
         group_id = get_or_create_group(
             conn, faculty_id=faculty_id, code=g['code'],
             site_id=g.get('site_id', ''),
@@ -120,6 +128,7 @@ def run_socio():
         res = save_lessons(conn, group_id, g['lessons'])
         saved_groups += 1
         saved_lessons += res['written']
+        kept_teachers += res['teachers_kept']
 
         if res['skipped']:
             guarded.append(f"{g['code']} ({res['reason']})")
@@ -151,13 +160,15 @@ def run_socio():
     if thin:
         extra.append(f"мало занятий у {len(thin)} групп: " + ', '.join(thin[:10]))
 
-    status, message, problems = _compose(parser, extra)
+    status, message, problems = _compose(
+        parser, extra, note=f"преподавателей сохранено: {kept_teachers}")
 
     log_parse(conn, 'socio', status, lessons_count=saved_lessons,
               groups_count=saved_groups, message=message)
     conn.close()
 
     print(f"\n[socio] Сохранено: {saved_groups} групп, {saved_lessons} занятий")
+    print(f"[socio] Преподавателей сохранено при перезаписи: {kept_teachers}")
     _report('socio', parser, problems)
 
     if saved_lessons < MIN_EXPECTED_LESSONS:

@@ -219,10 +219,12 @@ def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = 
     лежит в базе за те же даты) — ничего не трогаем и говорим об этом наверх.
     Иначе один плохой ответ стирает нормальное расписание.
 
-    Возвращает {'written': int, 'skipped': bool, 'reason': str}.
+    Возвращает {'written': int, 'skipped': bool, 'reason': str,
+    'teachers_kept': int}.
     """
     if not lessons:
-        return {'written': 0, 'skipped': False, 'reason': 'нет занятий'}
+        return {'written': 0, 'skipped': False, 'reason': 'нет занятий',
+                'teachers_kept': 0}
 
     dates = sorted(set(l['date'] for l in lessons))
     placeholders = ','.join('?' for _ in dates)
@@ -238,7 +240,23 @@ def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = 
             'written': 0,
             'skipped': True,
             'reason': f"пришло {len(lessons)} занятий против {existing} в базе за те же даты",
+            'teachers_kept': 0,
         }
+
+    # Преподавателя на страницах групп нет вовсе (docs/SITE.md §5), поэтому
+    # socio приносит занятие с пустым полем всегда. Имена ставит отдельный
+    # проход teachers, и пока они не переносились через DELETE+INSERT, каждый
+    # прогон socio их стирал: расписание оставалось без единого имени до
+    # следующего ночного прохода по кафедрам.
+    kept_teachers = {
+        (r['date'], r['pair_number'], r['subject']): r['teacher']
+        for r in conn.execute(
+            f"""SELECT date, pair_number, subject, teacher FROM lessons
+                 WHERE group_id = ? AND subgroup = '' AND date IN ({placeholders})
+                   AND teacher IS NOT NULL AND teacher != ''""",
+            [group_id] + dates
+        )
+    }
 
     # Только занятия самой группы: расписание подгрупп собирается
     # отдельным проходом и стирать его тут нельзя
@@ -247,26 +265,49 @@ def save_lessons(conn, group_id: int, lessons: list[dict], shrink_guard: bool = 
              WHERE group_id = ? AND subgroup = '' AND date IN ({placeholders})""",
         [group_id] + dates
     )
-    _insert_lessons(conn, group_id, lessons, subgroup='')
+    kept = _insert_lessons(conn, group_id, lessons, subgroup='',
+                           kept_teachers=kept_teachers)
     conn.commit()
-    return {'written': len(lessons), 'skipped': False, 'reason': ''}
+    return {'written': len(lessons), 'skipped': False, 'reason': '',
+            'teachers_kept': kept}
 
 
-def _insert_lessons(conn, group_id: int, lessons: list, subgroup: str):
+def _insert_lessons(conn, group_id: int, lessons: list, subgroup: str,
+                    kept_teachers: dict = None) -> int:
+    """
+    Вставить занятия. Возвращает, скольким из них преподаватель достался
+    из kept_teachers.
+
+    kept_teachers — имена, снятые с удаляемых строк по ключу
+    (дата, номер пары, предмет). Нужны, когда источник занятия
+    преподавателя не знает: своё имя всегда сильнее перенесённого,
+    перенос только заполняет пустоту.
+    """
+    kept_teachers = kept_teachers or {}
+    kept = 0
+    rows = []
+    for l in lessons:
+        teacher = l.get('teacher', '')
+        if not teacher:
+            teacher = kept_teachers.get(
+                (l['date'], l['pair_number'], l['subject']), '')
+            if teacher:
+                kept += 1
+        rows.append(
+            (group_id, l['date'], l['pair_number'], l['time_start'], l['time_end'],
+             l['subject'], l.get('subject_abbr', ''), l.get('lesson_type', ''),
+             l.get('lesson_type_full', ''), l.get('room', ''), teacher,
+             subgroup)
+        )
     conn.executemany(
         """INSERT INTO lessons
            (group_id, date, pair_number, time_start, time_end,
             subject, subject_abbr, lesson_type, lesson_type_full, room,
             teacher, subgroup)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        [
-            (group_id, l['date'], l['pair_number'], l['time_start'], l['time_end'],
-             l['subject'], l.get('subject_abbr', ''), l.get('lesson_type', ''),
-             l.get('lesson_type_full', ''), l.get('room', ''), l.get('teacher', ''),
-             subgroup)
-            for l in lessons
-        ]
+        rows
     )
+    return kept
 
 
 def save_subgroup_lessons(conn, group_id: int, subgroup: str,

@@ -80,8 +80,15 @@ scp /tmp/schedule.db сервер:/opt/msu-schedule/data/schedule.db
 sudo chown msu:msu /opt/msu-schedule/data/schedule.db
 ```
 
-Бота на время переноса остановить (`systemctl stop msu-bot`), иначе он
-допишет в старый файл после снятия копии.
+На Windows `sqlite3.exe` обычно не установлен — там то же самое питоном:
+
+```powershell
+python -c "import sqlite3; s=sqlite3.connect('data/schedule.db'); d=sqlite3.connect('C:/Temp/schedule.db'); s.backup(d); d.close(); s.close()"
+```
+
+Бота на время переноса остановить (`systemctl stop msu-bot`, на рабочей
+машине — Ctrl+C в окне `run_bot.py`), иначе он допишет в старый файл после
+снятия копии.
 
 Если бот ещё никем не используется — проще собрать с нуля, шаг 3.
 

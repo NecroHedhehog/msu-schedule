@@ -19,7 +19,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import parsers.base as base
 from parsers.base import FetchError
 from parsers.socio import SocioParser
-from core.database import _create_tables, save_lessons, count_lessons
+from core.database import (_create_tables, save_lessons, count_lessons,
+                           save_subgroup_lessons)
+from core.db_students import update_lesson_teachers
 
 from tests import fake_site
 from tests.fake_site import FakeSite, day_table, lesson_div, broken_div
@@ -389,3 +391,94 @@ class TestIncrementalSave(ParserTestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class TestTeacherSurvivesRewrite(unittest.TestCase):
+    """
+    Прогон socio не должен стирать преподавателей.
+
+    Страницы групп преподавателя не содержат вовсе (docs/SITE.md §5),
+    поэтому socio приносит пустое поле, а имена ставит отдельный проход
+    teachers. Пока save_lessons не переносил их через DELETE+INSERT, каждый
+    прогон socio обнулял результат прохода по кафедрам: в базе оставалось
+    ноль имён до следующей ночи.
+    """
+
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        self.conn.row_factory = sqlite3.Row
+        _create_tables(self.conn)
+        self.addCleanup(self.conn.close)
+
+    @staticmethod
+    def lessons(n, teacher='', dt='2026-09-08'):
+        return [{
+            'date': dt, 'pair_number': i + 1, 'time_start': '09:00', 'time_end': '10:30',
+            'subject': f'Предмет {i}', 'subject_abbr': 'П', 'lesson_type': 'Лк',
+            'lesson_type_full': 'Лекция', 'room': '101', 'teacher': teacher,
+        } for i in range(n)]
+
+    def teachers(self):
+        return [r['teacher'] for r in self.conn.execute(
+            "SELECT teacher FROM lessons WHERE group_id = 1 ORDER BY pair_number")]
+
+    def test_socio_rerun_keeps_teachers(self):
+        """Главное: имена, проставленные проходом teachers, переживают socio."""
+        save_lessons(self.conn, 1, self.lessons(6))
+        update_lesson_teachers(self.conn, [{
+            'teacher': 'Сушко В.А.', 'group_id': 1, 'date': '2026-09-08',
+            'pair_number': 3, 'subject': 'Предмет 2',
+        }])
+        self.assertEqual(self.teachers().count('Сушко В.А.'), 1)
+
+        # тот же socio ещё раз: занятия те же, преподавателя он не знает
+        res = save_lessons(self.conn, 1, self.lessons(6))
+
+        self.assertEqual(res['teachers_kept'], 1)
+        self.assertEqual(self.teachers().count('Сушко В.А.'), 1,
+                         "socio стёр преподавателя, поставленного проходом teachers")
+
+    def test_own_teacher_wins_over_kept(self):
+        """Имя из свежих данных сильнее перенесённого: источник знает лучше."""
+        save_lessons(self.conn, 1, self.lessons(2, teacher='Старый С.С.'))
+        res = save_lessons(self.conn, 1, self.lessons(2, teacher='Новый Н.Н.'))
+
+        self.assertEqual(res['teachers_kept'], 0)
+        self.assertEqual(set(self.teachers()), {'Новый Н.Н.'})
+
+    def test_changed_lesson_does_not_inherit_teacher(self):
+        """Другой предмет в той же паре — другое занятие, имя не наследуется."""
+        save_lessons(self.conn, 1, self.lessons(2, teacher='Сушко В.А.'))
+        replaced = self.lessons(2)
+        replaced[0]['subject'] = 'Совсем другой предмет'
+        res = save_lessons(self.conn, 1, replaced)
+
+        self.assertEqual(res['teachers_kept'], 1, "уцелеть должно только второе занятие")
+        by_subject = {r['subject']: r['teacher'] for r in self.conn.execute(
+            "SELECT subject, teacher FROM lessons WHERE group_id = 1")}
+        self.assertEqual(by_subject['Совсем другой предмет'], '')
+        self.assertEqual(by_subject['Предмет 1'], 'Сушко В.А.')
+
+    def test_guarded_run_reports_zero_kept(self):
+        """Огрызок ничего не переписывает — и переносить ему нечего."""
+        save_lessons(self.conn, 1, self.lessons(10, teacher='Сушко В.А.'))
+        res = save_lessons(self.conn, 1, self.lessons(2))
+
+        self.assertTrue(res['skipped'])
+        self.assertEqual(res['teachers_kept'], 0)
+        self.assertEqual(self.teachers().count('Сушко В.А.'), 10)
+
+    def test_subgroup_lessons_are_untouched(self):
+        """Занятия подгрупп socio не трогает — их имена не при чём."""
+        save_lessons(self.conn, 1, self.lessons(2))
+        save_subgroup_lessons(self.conn, 1, 'с101-1', [{
+            'date': '2026-09-08', 'pair_number': 5, 'time_start': '15:00',
+            'time_end': '16:30', 'subject': 'Английский язык', 'subject_abbr': 'Англ',
+            'lesson_type': 'Пр', 'lesson_type_full': 'Практика', 'room': '202',
+            'teacher': 'Авдохина С.Б.',
+        }])
+        save_lessons(self.conn, 1, self.lessons(2))
+
+        kept = self.conn.execute(
+            "SELECT teacher FROM lessons WHERE subgroup = 'с101-1'").fetchone()
+        self.assertEqual(kept['teacher'], 'Авдохина С.Б.')
