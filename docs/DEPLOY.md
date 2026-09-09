@@ -4,8 +4,10 @@
 по таймерам. Ниже — systemd, потому что он есть везде и умеет то, чего не
 умеет cron: перезапуск при падении, зависимости между юнитами, журнал.
 
-Ресурсы нужны смешные: база на 6800 занятий весит 1.8 МБ, бот в поллинге
-ест десятки мегабайт. Хватит самой дешёвой VPS.
+Ресурсы нужны скромные. Замер на боевом стенде 09.09.2026: база на 6768
+занятий и 1023 студента — 3.4 МБ, бот в поллинге — 159 МБ памяти, прогон
+парсера добавляет к этому 40–50 МБ. Хватает VPS на гигабайт памяти, где
+кроме нас живут ещё два сервиса.
 
 ## Чек-лист
 
@@ -19,7 +21,7 @@
 - [ ] таймеры `socio`, `subgroups`, `teachers` включены — §5
 - [ ] `msu-freshness.timer` включён, алерт в Telegram проверен — §6
 - [ ] бэкапы в `data/backups/` идут и чистятся — §7
-- [ ] в `parse_log` последний прогон `ok`, а не `warning`/`partial` — §9
+- [ ] в `parse_log` последний прогон не `error` и не `partial` — §9
 
 Отдельно: **дата смены семестра**. Коды групп на сайте переиспользуются,
 и без чистки под одним кодом смешаются два набора — §11.
@@ -183,11 +185,24 @@ sudo systemctl daemon-reload && sudo systemctl restart msu-bot
 Проверить: `sudo -u msu .venv/bin/python -c "from datetime import datetime; print(datetime.now())"`
 под юнитом должно дать московское время.
 
-**`OnCalendar` в таймерах это не покрывает** — таймеры считают время
-в системном поясе. На сервере в UTC+2 расписание из §5 срабатывает
-в 08:10/14:10/20:10 по Москве. Если нужны ровно московские часы, либо
-сдвиньте `OnCalendar`, либо припишите таймерам `Timezone=Europe/Moscow`
-(systemd 252+).
+**`OnCalendar` в таймерах это не покрывает** — переменная окружения на них
+не действует, время считается в системном поясе. На сервере в UTC+2
+расписание срабатывало бы в 08:10/14:10/20:10 по Москве.
+
+Лечится прямо в расписании: пояс можно писать в самом `OnCalendar`, и это
+работает начиная с systemd 233 — отдельная настройка `Timezone=` в юните
+понадобилась бы только с 252-го. Поэтому в §5 везде стоит
+`… Europe/Moscow`.
+
+Сдвигать часы вручную на разницу поясов **нельзя**: в конце октября сервер
+перейдёт на зимнее время, а Москва нет, и расписание уедет на час обратно.
+Имя пояса это учитывает само.
+
+Проверить, что systemd понимает запись:
+
+```bash
+systemd-analyze calendar '*-*-* 07:10 Europe/Moscow'
+```
 
 ## 5. Парсер по таймерам
 
@@ -226,7 +241,7 @@ ReadWritePaths=/opt/msu-schedule/data
 Description=Собирать расписание групп
 
 [Timer]
-OnCalendar=*-*-* 07,13,19:10
+OnCalendar=*-*-* 07,13,19:10 Europe/Moscow
 Persistent=true
 RandomizedDelaySec=600
 Unit=msu-parser@socio.service
@@ -242,7 +257,7 @@ WantedBy=timers.target
 Description=Собирать языковые потоки первого курса
 
 [Timer]
-OnCalendar=*-*-* 05:30
+OnCalendar=*-*-* 05:30 Europe/Moscow
 Persistent=true
 RandomizedDelaySec=600
 Unit=msu-parser@subgroups.service
@@ -263,7 +278,7 @@ WantedBy=timers.target
 Description=Собирать преподавателей через кафедры
 
 [Timer]
-OnCalendar=*-*-* 04:30
+OnCalendar=Mon,Wed,Fri *-*-* 04:30 Europe/Moscow
 Persistent=true
 RandomizedDelaySec=900
 Unit=msu-parser@teachers.service
@@ -271,6 +286,18 @@ Unit=msu-parser@teachers.service
 [Install]
 WantedBy=timers.target
 ```
+
+**Почему `teachers` через день, а не каждую ночь.** Имена теперь переживают
+перезапись занятий (`save_lessons` их переносит), а `update_lesson_teachers`
+пишет только в пустое поле. Значит, повторный прогон по уже заполненной базе
+обновляет ноль строк: 09.09.2026 ночной прогон честно отчитался `ok`
+с нулём обновлений. Пн/Ср/Пт хватает, чтобы подхватывать имена у занятий,
+которые появляются с прокруткой месяца, и это 586 запросов трижды в неделю
+вместо семи.
+
+Оговорка: реже — это экономия, а не решение. Сменившегося преподавателя
+не запишет ни ежедневный прогон, ни еженедельный, потому что поле занято.
+Разбор — [TODO.md §2а](TODO.md).
 
 ```bash
 sudo systemctl daemon-reload
@@ -335,7 +362,7 @@ ExecStart=/opt/msu-schedule/.venv/bin/python check_freshness.py
 Description=Проверять, не протухли ли данные
 
 [Timer]
-OnCalendar=*-*-* 09,21:00
+OnCalendar=*-*-* 09,21:00 Europe/Moscow
 Persistent=true
 Unit=msu-freshness.service
 
@@ -368,10 +395,26 @@ WorkingDirectory=/opt/msu-schedule
 ExecStart=/bin/sh -c 'sqlite3 data/schedule.db ".backup data/backups/schedule-$(date +%%F).db" && find data/backups -name "schedule-*.db" -mtime +14 -delete'
 ```
 
-С таймером на `OnCalendar=*-*-* 03:00`. Каталог создать заранее:
+`/etc/systemd/system/msu-backup.timer`:
+
+```ini
+[Unit]
+Description=Ежедневная резервная копия базы
+
+[Timer]
+OnCalendar=*-*-* 03:00 Europe/Moscow
+Persistent=true
+Unit=msu-backup.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Каталог создать заранее, иначе первая же копия упрётся в его отсутствие:
 
 ```bash
 sudo -u msu mkdir -p /opt/msu-schedule/data/backups
+sudo systemctl enable --now msu-backup.timer
 ```
 
 ## 8. Логи
@@ -382,14 +425,24 @@ journalctl -u 'msu-parser@*' --since today  # прогоны за сегодня
 ```
 
 Парсер печатает по строке на запрос — при полном проходе это тысячи строк.
-Если журнал распухает, ограничьте:
+Замер на боевом стенде: около 6300 строк в сутки от наших юнитов против
+131 от всего остального, то есть журнал почти целиком наш, и за сутки работы
+он вырос до 208 МБ.
+
+Штатный предел journald — 10% раздела, на девятигигабайтном диске это почти
+гигабайт. Лучше задать свой:
 
 ```ini
-# в msu-parser@.service
-LogRateLimitIntervalSec=0
+# /etc/systemd/journald.conf
+SystemMaxUse=500M
 ```
 
-или заведите `SystemMaxUse` в `/etc/systemd/journald.conf`.
+Потолок стоит брать **выше текущего объёма**: journald применяет его сразу
+и вычистит всё лишнее, а на общей машине это чужие логи тоже. Посмотреть
+объём — `journalctl --disk-usage`, применить — `systemctl restart systemd-journald`.
+
+Если мешает не объём, а скорость записи, есть ещё `LogRateLimitIntervalSec=0`
+в `msu-parser@.service` — но это про частоту сообщений, а не про диск.
 
 ## 9. Что мониторить
 
@@ -413,7 +466,17 @@ sqlite3 -header -column data/schedule.db \
 **Растущее число нераспознанных блоков означает, что сайт изменили** — надо
 идти смотреть разметку и обновлять [SITE.md](SITE.md).
 
-Алерты в Telegram приходят сами: на `error`, на `partial` и на устаревание.
+**Постоянный `warning` у `socio` — не обязательно поломка.** На 09.09.2026
+он держится из-за четырёх групп, у которых мало занятий или нет вовсе:
+трём расписание просто ещё не выложили, а `мг61соврс` начинает в октябре.
+Подписчиков у них нет. Порог на группу для того и сделан, чтобы такое
+было видно поимённо, — «починить» его переходом на факультетский нельзя,
+именно из-за факультетского семь пустых групп проходили как «всё ок»
+(правило в [CLAUDE.md](../CLAUDE.md)). Смотреть надо не на сам статус,
+а на то, изменился ли список групп в `message`.
+
+Алерты в Telegram приходят сами: на `error`, на `partial`, на устаревание
+и на необработанное исключение в самом боте.
 
 ## 10. Обновление
 
