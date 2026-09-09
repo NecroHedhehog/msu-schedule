@@ -580,3 +580,113 @@ class LiveGroupIsNotWarnedTest(BotTestCase):
     async def test_no_warning_on_week(self):
         text, _ = await self.send_text("🗓 Неделя")
         self.assertNotIn('больше нет', text)
+
+
+class FeedbackTest(BotTestCase):
+    """
+    Раздел «Связь»: бот принимает сообщение сам.
+
+    Раньше здесь стоял чужой ник — человека отправляли писать в личку
+    постороннему аккаунту, а бот в разговоре о собственной поломке
+    не участвовал.
+    """
+
+    ADMIN = 777000
+
+    def seed(self, conn):
+        db.set_user_group(conn, self.chat.id, 1)
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        m = self.bot_main
+        self._saved = (m.ADMIN_CHAT_ID, m.AD_FULL_TEXT)
+        m.ADMIN_CHAT_ID = self.ADMIN
+        m.AD_FULL_TEXT = '💬 <b>Связь</b>'
+        self.addCleanup(self._restore_ad)
+
+    def _restore_ad(self):
+        self.bot_main.ADMIN_CHAT_ID, self.bot_main.AD_FULL_TEXT = self._saved
+
+    def to_admin(self):
+        """Сообщения, ушедшие владельцу, а не автору запроса."""
+        return [m for m in self.session.sent
+                if str(getattr(m, 'chat_id', '')) == str(self.ADMIN)]
+
+    async def open_section(self):
+        return await self.send_text(self.bot_main.AD_BUTTON_LABEL)
+
+    async def test_section_invites_to_write(self):
+        text, _ = await self.open_section()
+        self.assertIn('Напишите сообщение', text)
+
+    async def test_section_does_not_name_anyone(self):
+        """Главное в задаче: ник владельца не должен светиться."""
+        text, _ = await self.open_section()
+        self.assertNotIn('@', text)
+
+    async def test_message_reaches_the_owner(self):
+        await self.open_section()
+        text, _ = await self.send_text("В среду пара стоит не в той аудитории")
+
+        sent = self.to_admin()
+        self.assertEqual(len(sent), 1, "владельцу ничего не ушло")
+        self.assertIn('не в той аудитории', sent[0].text)
+        self.assertIn('с403', sent[0].text, "группа должна быть видна")
+        self.assertIn(str(self.chat.id), sent[0].text)
+        self.assertIn('передал', text.lower())
+
+    async def test_html_in_message_is_escaped(self):
+        """Иначе угловые скобки в тексте человека не дадут сообщению уйти."""
+        await self.open_section()
+        await self.send_text("тут <b>сломалось</b> и <не работает>")
+
+        sent = self.to_admin()
+        self.assertEqual(len(sent), 1)
+        self.assertIn('&lt;b&gt;', sent[0].text)
+        self.assertNotIn('<b>сломалось', sent[0].text)
+
+    async def test_message_is_kept_in_log(self):
+        """Если отправка не пройдёт, написанное не должно пропасть."""
+        await self.open_section()
+        await self.send_text("расписание не открывается")
+
+        conn = db.get_connection()
+        row = conn.execute(
+            "SELECT action, detail FROM activity_log WHERE chat_id = ? "
+            "ORDER BY id DESC LIMIT 1", (self.chat.id,)).fetchone()
+        conn.close()
+        self.assertEqual(row['action'], 'feedback')
+        self.assertIn('не открывается', row['detail'])
+
+    async def test_too_short_is_asked_to_expand(self):
+        await self.open_section()
+        text, _ = await self.send_text("аа")
+
+        self.assertIn('подробнее', text.lower())
+        self.assertEqual(self.to_admin(), [], "обрывок владельцу не нужен")
+
+    async def test_main_button_cancels(self):
+        """Передумал и нажал «Сегодня» — это расписание, а не сообщение."""
+        await self.open_section()
+        text, _ = await self.send_text("📅 Сегодня")
+
+        self.assertEqual(self.to_admin(), [])
+        self.assertIn('сентября', text)
+
+    async def test_next_message_is_not_feedback_again(self):
+        """
+        Состояние снимается после первого сообщения: иначе человек, однажды
+        написавший в «Связь», отправлял бы владельцу каждый свой поиск.
+        """
+        await self.open_section()
+        await self.send_text("первое сообщение про ошибку")
+        self.assertEqual(len(self.to_admin()), 1, "первое должно было уйти")
+
+        # send_text чистит список отправленного, так что это уже про второе
+        text, buttons = await self.send_text("Смирнов")
+
+        self.assertEqual(self.to_admin(), [],
+                         "второе сообщение ушло владельцу, хотя не должно")
+        # фамилия уходит в кнопки результата, а не в текст сообщения
+        self.assertTrue(any('Смирнов' in b for b in buttons),
+                        "должен был отработать обычный поиск")

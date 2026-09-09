@@ -5,6 +5,7 @@ Telegram-бот расписания МГУ.
 
 import asyncio
 import hashlib
+import html
 import logging
 import re
 from datetime import date, timedelta, datetime
@@ -58,6 +59,7 @@ class Search(StatesGroup):
     group = State()      # ждём номер группы
     student = State()    # ждём фамилию студента
     teacher = State()    # ждём фамилию преподавателя
+    feedback = State()   # ждём сообщение для владельца бота
 
 
 # === Клавиатура ===
@@ -1003,11 +1005,25 @@ async def on_lang_any_teacher(callback: CallbackQuery):
 
 @router.message(F.text == AD_BUTTON_LABEL)
 async def cmd_ad(message: Message, state: FSMContext):
+    """
+    Раздел «Связь»: бот принимает сообщение сам.
+
+    Раньше здесь стоял чужой ник — человека отправляли писать в личку
+    постороннему аккаунту, а бот в разговоре о собственной поломке
+    не участвовал.
+    """
     await state.clear()
     if not AD_FULL_TEXT:
         return
     do_track(message, 'ad_click')
-    await message.answer(AD_FULL_TEXT, parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
+
+    text = AD_FULL_TEXT
+    if ADMIN_CHAT_ID:
+        text += ("\n\nНапишите сообщение прямо здесь — я передам его дальше.\n"
+                 "Передумали? Просто нажмите любую кнопку.")
+        await state.set_state(Search.feedback)
+
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
 
 
 # === Статистика (только для админа) ===
@@ -1390,6 +1406,54 @@ async def on_group_query(message: Message, state: FSMContext):
             f"🔍 Группа «{text}» не найдена. Попробуй ещё раз или нажми "
             f"<b>👥 Сменить группу</b>.",
             parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
+
+
+# Столько символов из сообщения доходит до владельца и остаётся в журнале.
+# Ограничение нужно, чтобы одно длинное сообщение не выбило лимит Telegram
+# на длину и не осталось недоставленным целиком.
+FEEDBACK_LIMIT = 2000
+
+
+@router.message(Search.feedback, F.text & ~F.text.startswith('/'))
+async def on_feedback(message: Message, state: FSMContext):
+    """
+    Принять сообщение и передать владельцу.
+
+    Текст сначала уходит в activity_log и только потом в Telegram: если
+    отправка не пройдёт, написанное человеком останется в базе, а не
+    пропадёт вместе с запросом.
+    """
+    text = message.text.strip()
+    if text in MAIN_BUTTON_TEXTS:
+        return
+    if len(text) < 5:
+        await message.answer("Напишите чуть подробнее — хотя бы несколько слов.")
+        return
+
+    await state.clear()
+    do_track(message, 'feedback', text[:FEEDBACK_LIMIT])
+
+    conn = get_connection()
+    ug = get_user_group(conn, message.chat.id)
+    conn.close()
+    group = ug['group_code'] if ug else 'группа не выбрана'
+
+    who = message.from_user.username
+    who = f"@{who}" if who else 'без ника'
+
+    # Экранируем: parse_mode=HTML, а человек может написать что угодно
+    # с угловыми скобками, и сообщение просто не уйдёт
+    await message.bot.send_message(
+        ADMIN_CHAT_ID,
+        f"💬 <b>Сообщение из бота</b>\n"
+        f"{group} · {who} · id {message.chat.id}\n\n"
+        f"{html.escape(text[:FEEDBACK_LIMIT])}",
+        parse_mode=ParseMode.HTML,
+    )
+
+    await message.answer(
+        "Спасибо, передал. Если понадобится уточнить — с вами свяжутся.",
+        reply_markup=keyboard_for(message.chat.id))
 
 
 @router.message(F.text & ~F.text.startswith('/'))
