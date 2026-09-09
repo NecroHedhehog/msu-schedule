@@ -66,18 +66,26 @@ HELP_BUTTON = "❓ Помощь"
 
 
 def build_main_keyboard(with_language: bool = False):
+    """
+    Раскладка по смыслу рядов, а не по остаточному принципу:
+      1. расписание
+      2. что настраивается под себя, и помощь рядом с этим
+      3. поиск и смена группы
+      4. реклама, если задана
+    """
+    personal = [KeyboardButton(text="📋 Предметы")]
+    if with_language:
+        personal.append(KeyboardButton(text=LANG_BUTTON))
+    personal.append(KeyboardButton(text=HELP_BUTTON))
+
     buttons = [
-        [KeyboardButton(text="📅 Сегодня"), KeyboardButton(text="📆 Завтра")],
-        [KeyboardButton(text="🗓 Неделя"), KeyboardButton(text="📋 Предметы")],
+        [KeyboardButton(text="📅 Сегодня"), KeyboardButton(text="📆 Завтра"),
+         KeyboardButton(text="🗓 Неделя")],
+        personal,
         [KeyboardButton(text="👨‍🏫 Преподаватель"), KeyboardButton(text="👥 Сменить группу")],
     ]
-    bottom_row = []
-    if with_language:
-        bottom_row.append(KeyboardButton(text=LANG_BUTTON))
-    bottom_row.append(KeyboardButton(text=HELP_BUTTON))
     if AD_FULL_TEXT:
-        bottom_row.append(KeyboardButton(text=AD_BUTTON_LABEL))
-    buttons.append(bottom_row)
+        buttons.append([KeyboardButton(text=AD_BUTTON_LABEL)])
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 

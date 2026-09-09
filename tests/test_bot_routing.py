@@ -369,6 +369,19 @@ class LanguagePickerTest(BotTestCase):
         self.assertTrue(any('Предметы по выбору' in b for b in buttons))
         self.assertTrue(any('Языки' in b for b in buttons))
 
+    async def test_keyboard_groups_personal_buttons(self):
+        """Предметы, язык и помощь — в одном ряду: это то, что человек настраивает."""
+        rows = [[b.text for b in row] for row in self.bot_main.LANG_KEYBOARD.keyboard]
+        personal = next(r for r in rows if '📋 Предметы' in r)
+
+        self.assertIn(self.bot_main.LANG_BUTTON, personal)
+        self.assertIn(self.bot_main.HELP_BUTTON, personal)
+
+        plain = [[b.text for b in row] for row in self.bot_main.MAIN_KEYBOARD.keyboard]
+        personal_plain = next(r for r in plain if '📋 Предметы' in r)
+        self.assertIn(self.bot_main.HELP_BUTTON, personal_plain)
+        self.assertNotIn(self.bot_main.LANG_BUTTON, personal_plain)
+
     async def test_help_button_works_like_command(self):
         await self.pick_group()
         text, buttons = await self.send_text(self.bot_main.HELP_BUTTON)
