@@ -191,18 +191,23 @@ def bind_student(conn, chat_id: int, student_id: int):
 
 
 def get_bound_student(conn, chat_id: int) -> dict | None:
-    """Получить привязанного студента."""
-    try:
-        row = conn.execute(
-            """SELECT s.*, g.code as group_code FROM users u
-               JOIN students s ON u.student_id = s.id
-               JOIN groups_ g ON s.group_id = g.id
-               WHERE u.chat_id = ?""",
-            (chat_id,)
-        ).fetchone()
-        return dict(row) if row else None
-    except Exception:
-        return None
+    """
+    Получить привязанного студента. None означает «не привязан», и только это.
+
+    Раньше здесь стоял except Exception: return None — он появился, когда
+    колонки users.student_id могло не быть. Теперь её дописывает _migrate
+    при каждом открытии соединения, а глушитель остался и делал «студент
+    не привязан» и «база недоступна» неотличимыми. Сбой базы должен
+    всплывать: его поймает обработчик ошибок бота и скажет человеку.
+    """
+    row = conn.execute(
+        """SELECT s.*, g.code as group_code FROM users u
+           JOIN students s ON u.student_id = s.id
+           JOIN groups_ g ON s.group_id = g.id
+           WHERE u.chat_id = ?""",
+        (chat_id,)
+    ).fetchone()
+    return dict(row) if row else None
 
 def ensure_student_subjects_table(conn):
     """Таблица предметов студента."""

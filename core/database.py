@@ -1,6 +1,7 @@
 """Работа с базой данных SQLite."""
 
 import sqlite3
+from datetime import date
 from pathlib import Path
 from core.config import DB_PATH, SHRINK_GUARD_RATIO
 
@@ -22,6 +23,7 @@ _ADDED_COLUMNS = (
     ('lessons', 'subgroup', "TEXT DEFAULT ''"),
     ('user_streams', 'subgroup', "TEXT DEFAULT ''"),
     ('users', 'student_id', 'INTEGER'),
+    ('groups_', 'last_seen', 'TEXT'),
 )
 
 
@@ -39,6 +41,14 @@ def _migrate(conn: sqlite3.Connection):
             continue          # таблицы ещё нет — её создаст _create_tables
         if column not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
+            if (table, column) == ('groups_', 'last_seen'):
+                # Разово, в момент появления колонки: считаем все известные
+                # группы живыми. Иначе до первого обхода сайта каждая из них
+                # выглядела бы пропавшей, и подписчики живых групп получили бы
+                # «группы больше нет». Настоящие пропавшие отсеются сами:
+                # их не тронет ни один следующий обход, и они отстанут.
+                conn.execute("UPDATE groups_ SET last_seen = ?",
+                             (date.today().isoformat(),))
             conn.commit()
 
 
@@ -70,6 +80,7 @@ def _create_tables(conn: sqlite3.Connection):
             department TEXT,
             program TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_seen TEXT,
             FOREIGN KEY (faculty_id) REFERENCES faculties(id),
             UNIQUE(faculty_id, code)
         );
@@ -183,6 +194,13 @@ def get_or_create_faculty(conn, code: str, name: str, domain: str) -> int:
 def get_or_create_group(conn, faculty_id: int, code: str,
                          site_id: str = None, department: str = None,
                          program: str = None) -> int:
+    # Сюда попадают только группы, которые парсер видит в навигации сайта,
+    # поэтому отметка времени и означает «группа ещё существует». Коды
+    # выпустившихся наборов из навигации исчезают, а строка в базе остаётся
+    # навсегда — без отметки бот не мог отличить «расписание ещё не выложили»
+    # от «такой группы больше нет».
+    seen_today = date.today().isoformat()
+
     row = conn.execute(
         "SELECT id FROM groups_ WHERE faculty_id = ? AND code = ?",
         (faculty_id, code)
@@ -190,15 +208,17 @@ def get_or_create_group(conn, faculty_id: int, code: str,
     if row:
         # обновить поля если они изменились
         conn.execute(
-            """UPDATE groups_ SET site_id = ?, department = ?, program = ?
+            """UPDATE groups_ SET site_id = ?, department = ?, program = ?,
+                                  last_seen = ?
                WHERE id = ?""",
-            (site_id, department, program, row['id'])
+            (site_id, department, program, seen_today, row['id'])
         )
         conn.commit()
         return row['id']
     cursor = conn.execute(
-        "INSERT INTO groups_ (faculty_id, code, site_id, department, program) VALUES (?, ?, ?, ?, ?)",
-        (faculty_id, code, site_id, department, program)
+        "INSERT INTO groups_ (faculty_id, code, site_id, department, program, last_seen) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (faculty_id, code, site_id, department, program, seen_today)
     )
     conn.commit()
     return cursor.lastrowid
@@ -440,6 +460,7 @@ def find_groups_by_code(conn, query: str, limit: int = 20) -> list:
 def get_user_group(conn, chat_id: int) -> dict | None:
     row = conn.execute(
         """SELECT s.group_id, g.code as group_code, g.department, g.program,
+                  g.last_seen,
                   f.name as faculty_name, f.code as faculty_code
            FROM subscriptions s
            JOIN groups_ g ON s.group_id = g.id

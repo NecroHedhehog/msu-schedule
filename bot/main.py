@@ -13,7 +13,7 @@ from collections import defaultdict
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import (
-    Message, CallbackQuery,
+    Message, CallbackQuery, ErrorEvent,
     InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton,
 )
@@ -34,6 +34,7 @@ from core.database import (
 from bot.formatting import (
     format_day_schedule, format_week_schedule, format_subject_button, format_slots,
 )
+from core.alerts import send_admin_alert
 from core.database import find_groups_by_code
 from core.db_students import (
     get_students_by_name, find_teachers_by_name,
@@ -286,6 +287,35 @@ def day_nav_keyboard(d: date) -> InlineKeyboardMarkup:
 
 
 # === Проверка группы ===
+
+# Сколько группа может не встречаться в навигации сайта, прежде чем считать
+# её пропавшей. Обход идёт трижды в сутки, так что неделя — это два десятка
+# прогонов подряд. Запас нужен: сайт регулярно лежит, и хотя required=True
+# превращает это в FetchError, а не в пустой успех, перестраховка дешевле
+# чем сказать «группы нет» тому, у кого она есть.
+GROUP_GONE_AFTER = timedelta(days=7)
+
+
+def group_gone_note(user: dict) -> str:
+    """
+    Предупреждение для группы, исчезнувшей с сайта. Пусто, если всё в порядке.
+
+    Наборы выпускаются, коды пропадают из навигации, а подписка в базе
+    остаётся навсегда: подписчик пп402 каждый день видел бодрое
+    «🎉 Нет занятий!» и никакого объяснения (docs/TODO.md §1).
+
+    last_seen пустой — это база, собранная до появления колонки. Молчим:
+    сказать «группы нет» тому, у кого она есть, хуже, чем не сказать ничего.
+    """
+    seen = user.get('last_seen')
+    if not seen:
+        return ''
+    if date.today() - date.fromisoformat(seen) <= GROUP_GONE_AFTER:
+        return ''
+    return ("⚠️ Этой группы больше нет в расписании факультета — похоже, "
+            "набор выпустился.\n"
+            "Нажмите <b>👥 Сменить группу</b>, чтобы выбрать другую.\n\n")
+
 
 async def check_group(message_or_callback) -> dict | None:
     if isinstance(message_or_callback, CallbackQuery):
@@ -560,7 +590,7 @@ async def cmd_today(message: Message, state: FSMContext):
     lessons, data_range, stream_choice = get_schedule_for_date(
         user['group_id'], d, message.chat.id)
 
-    text = f"👥 <b>{user['group_code']}</b>\n\n"
+    text = f"👥 <b>{user['group_code']}</b>\n\n" + group_gone_note(user)
     text += format_day_schedule(lessons, d, data_range=data_range,
                                 stream_choice=stream_choice)
 
@@ -583,7 +613,7 @@ async def cmd_tomorrow(message: Message, state: FSMContext):
     lessons, data_range, stream_choice = get_schedule_for_date(
         user['group_id'], d, message.chat.id)
 
-    text = f"👥 <b>{user['group_code']}</b>\n\n"
+    text = f"👥 <b>{user['group_code']}</b>\n\n" + group_gone_note(user)
     text += format_day_schedule(lessons, d, data_range=data_range,
                                 stream_choice=stream_choice)
 
@@ -619,6 +649,7 @@ async def send_week(message_or_callback, user: dict, monday: date):
     header = (
         f"👥 <b>{user['group_code']}</b>\n"
         f"📅 Неделя: {monday.strftime('%d.%m')} — {sunday.strftime('%d.%m')}\n\n"
+        + group_gone_note(user)
     )
 
     text = header + format_week_schedule(days, data_range, stream_choice)
@@ -671,7 +702,7 @@ async def on_day_navigate(callback: CallbackQuery):
     lessons, data_range, stream_choice = get_schedule_for_date(
         user['group_id'], d, callback.message.chat.id)
 
-    text = f"👥 <b>{user['group_code']}</b>\n\n"
+    text = f"👥 <b>{user['group_code']}</b>\n\n" + group_gone_note(user)
     text += format_day_schedule(lessons, d, data_range=data_range,
                                 stream_choice=stream_choice)
 
@@ -1395,6 +1426,52 @@ async def on_text_message(message: Message, state: FSMContext):
             f"Преподавателя — через <b>👨‍🏫 Преподаватель</b>.\n"
             f"Себя — через <b>👥 Сменить группу</b> → «Найти себя по фамилии».",
             parse_mode=ParseMode.HTML, reply_markup=keyboard_for(message.chat.id))
+
+
+# === Ошибки ===
+
+# Когда последний раз жаловались админу на исключение этого типа.
+# Без этого зациклившаяся ошибка превращается в поток одинаковых сообщений.
+_last_alert = {}
+ALERT_COOLDOWN = timedelta(minutes=10)
+
+
+@router.error()
+async def on_error(event: ErrorEvent):
+    """
+    Последний рубеж.
+
+    До этого в боте не было ни одного try/except и ни одного обработчика
+    ошибок: любое исключение означало, что человек молча не получает ответа.
+    Ни он, ни владелец не узнавали, что сломалось (docs/TODO.md §10).
+    """
+    exc = event.exception
+    logging.exception("Ошибка при обработке апдейта", exc_info=exc)
+
+    upd = event.update
+    try:
+        if getattr(upd, 'message', None):
+            await upd.message.answer(
+                "😵 Что-то сломалось на моей стороне. Ошибка записана — "
+                "попробуйте ещё раз."
+            )
+        elif getattr(upd, 'callback_query', None):
+            await upd.callback_query.answer(
+                "Что-то сломалось. Попробуйте ещё раз.", show_alert=True)
+    except Exception:
+        # Ответить не смогли; трассировка в журнале уже есть, и это главное
+        logging.exception("Не удалось сообщить пользователю об ошибке")
+
+    key = type(exc).__name__
+    now = datetime.now()
+    if ADMIN_CHAT_ID and now - _last_alert.get(key, datetime.min) > ALERT_COOLDOWN:
+        _last_alert[key] = now
+        # send_admin_alert синхронный (requests). Через to_thread, иначе
+        # на время запроса встаёт весь event loop — он в боте один на всех
+        await asyncio.to_thread(
+            send_admin_alert, f"🔴 <b>Бот — исключение</b>\n{key}: {exc}")
+
+    return True
 
 
 # === Запуск ===

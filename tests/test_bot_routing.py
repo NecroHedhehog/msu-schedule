@@ -17,7 +17,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -440,3 +440,143 @@ class LanguagePickerTest(BotTestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class ErrorHandlerTest(BotTestCase):
+    """
+    Немой отказ.
+
+    В боте не было ни одного try/except и ни одного обработчика ошибок:
+    исключение в хендлере означало, что человек просто не получает ответа,
+    а владелец об этом не узнаёт. Проверяем, что теперь и отвечаем, и
+    жалуемся админу — но не потоком одинаковых сообщений.
+    """
+
+    def seed(self, conn):
+        db.set_user_group(conn, self.chat.id, 1)
+
+    def break_handler(self):
+        """Сломать то, на чём стоит «Сегодня»."""
+        def boom(*a, **kw):
+            raise RuntimeError("база отвалилась")
+        saved = self.bot_main.get_schedule_for_date
+        self.bot_main.get_schedule_for_date = boom
+        self.addCleanup(lambda: setattr(
+            self.bot_main, 'get_schedule_for_date', saved))
+
+    def catch_alerts(self):
+        """Перехватить алерты админу, чтобы не ходить в Telegram."""
+        sent = []
+        saved = self.bot_main.send_admin_alert
+        self.bot_main.send_admin_alert = lambda text: sent.append(text) or True
+        self.addCleanup(lambda: setattr(
+            self.bot_main, 'send_admin_alert', saved))
+        self.bot_main._last_alert.clear()
+        self.addCleanup(self.bot_main._last_alert.clear)
+        return sent
+
+    async def test_user_gets_an_answer_instead_of_silence(self):
+        """Главное: раньше здесь не приходило вообще ничего."""
+        self.catch_alerts()
+        self.break_handler()
+
+        text, _ = await self.send_text("📅 Сегодня")
+
+        self.assertTrue(text, "пользователь не получил ответа")
+        self.assertIn('сломалось', text.lower())
+
+    async def test_admin_is_told(self):
+        sent = self.catch_alerts()
+        self.break_handler()
+
+        await self.send_text("📅 Сегодня")
+
+        self.assertEqual(len(sent), 1, "владелец не узнал об ошибке")
+        self.assertIn('RuntimeError', sent[0])
+        self.assertIn('база отвалилась', sent[0])
+
+    async def test_repeated_error_does_not_spam_admin(self):
+        """Зациклившаяся ошибка не должна превращаться в поток сообщений."""
+        sent = self.catch_alerts()
+        self.break_handler()
+
+        for _ in range(4):
+            await self.send_text("📅 Сегодня")
+
+        self.assertEqual(len(sent), 1, f"ушло {len(sent)} сообщений вместо одного")
+
+    async def test_working_handler_is_untouched(self):
+        """Обработчик ошибок не должен вмешиваться в нормальный ответ."""
+        sent = self.catch_alerts()
+        text, _ = await self.send_text("📅 Сегодня")
+
+        self.assertNotIn('сломалось', text.lower())
+        self.assertEqual(sent, [])
+
+
+class GroupGoneNoteTest(unittest.TestCase):
+    """Чистая функция: когда предупреждать, что группы больше нет."""
+
+    @classmethod
+    def setUpClass(cls):
+        import bot.main as bot_main
+        cls.note = staticmethod(bot_main.group_gone_note)
+
+    def test_fresh_group_is_silent(self):
+        self.assertEqual(self.note({'last_seen': date.today().isoformat()}), '')
+
+    def test_short_gap_is_tolerated(self):
+        """Сайт лежит несколько дней подряд — не повод хоронить группу."""
+        recent = (date.today() - timedelta(days=3)).isoformat()
+        self.assertEqual(self.note({'last_seen': recent}), '')
+
+    def test_missing_mark_is_silent(self):
+        """База до появления колонки: сказать «группы нет» тому, у кого она есть, хуже."""
+        self.assertEqual(self.note({'last_seen': None}), '')
+        self.assertEqual(self.note({}), '')
+
+    def test_vanished_group_is_explained(self):
+        old = (date.today() - timedelta(days=30)).isoformat()
+        note = self.note({'last_seen': old})
+
+        self.assertIn('больше нет', note)
+        self.assertIn('Сменить группу', note)
+
+
+class VanishedGroupTest(BotTestCase):
+    """
+    Сквозная проверка: подписчик пп402 видел «🎉 Нет занятий!» каждый день
+    и никакого объяснения. Теперь ему говорят правду.
+    """
+
+    def seed(self, conn):
+        db.set_user_group(conn, self.chat.id, 1)
+        conn.execute("UPDATE groups_ SET last_seen = ? WHERE id = 1",
+                     ((date.today() - timedelta(days=60)).isoformat(),))
+
+    async def test_today_explains_that_group_is_gone(self):
+        text, _ = await self.send_text("📅 Сегодня")
+
+        self.assertIn('больше нет', text)
+        self.assertIn('Сменить группу', text)
+
+    async def test_week_explains_too(self):
+        text, _ = await self.send_text("🗓 Неделя")
+        self.assertIn('больше нет', text)
+
+
+class LiveGroupIsNotWarnedTest(BotTestCase):
+    """Обратная сторона: у живой группы предупреждения быть не должно."""
+
+    def seed(self, conn):
+        db.set_user_group(conn, self.chat.id, 1)
+        conn.execute("UPDATE groups_ SET last_seen = ? WHERE id = 1",
+                     (date.today().isoformat(),))
+
+    async def test_no_warning_for_live_group(self):
+        text, _ = await self.send_text("📅 Сегодня")
+        self.assertNotIn('больше нет', text)
+
+    async def test_no_warning_on_week(self):
+        text, _ = await self.send_text("🗓 Неделя")
+        self.assertNotIn('больше нет', text)

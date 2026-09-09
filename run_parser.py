@@ -17,6 +17,7 @@
 пишется статус 'partial' — то есть данные есть, но неполные.
 """
 
+import signal
 import sys
 
 from core.config import MIN_LESSONS_PER_GROUP, SKIP_SUBGROUP_SUBJECTS
@@ -42,6 +43,37 @@ RESUME_COVERAGE = 0.8
 
 
 # ======= Разбор аргументов =======
+
+class Interrupted(Exception):
+    """
+    Прогон прерван сигналом.
+
+    Наследуется от Exception намеренно: ветки перехвата в run_* ловят
+    Exception и пишут в parse_log статус 'partial'. Сам по себе SIGTERM
+    исключения не поднимает — Python завершается мимо обработчика, поэтому
+    убитый по таймауту прогон уходил молча: ни записи в журнале, ни алерта,
+    хотя половина данных уже лежала в базе.
+    """
+
+
+def _install_signal_handlers():
+    """
+    Превратить SIGTERM и SIGINT в исключение.
+
+    SIGTERM шлёт systemd — по TimeoutStartSec, при systemctl stop и при
+    перезагрузке сервера. SIGINT — это Ctrl+C; он поднимает KeyboardInterrupt,
+    а тот наследуется от BaseException и мимо except Exception проходит
+    так же молча.
+
+    Ставится только из main(): signal.signal работает лишь в главном потоке,
+    а модуль импортируют тесты.
+    """
+    def raise_interrupted(signum, frame):
+        raise Interrupted(f"получен сигнал {signal.Signals(signum).name}")
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, raise_interrupted)
+
 
 def _has_flag(name: str) -> bool:
     return name in sys.argv[1:]
@@ -464,6 +496,8 @@ def run_test():
 
 
 def main():
+    _install_signal_handlers()
+
     args = sys.argv[1:]
     commands = [a for a in args if not a.startswith('--')]
 

@@ -8,20 +8,23 @@
 """
 
 import os
+import signal
 import sqlite3
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import parsers.base as base
 from parsers.base import FetchError
 from parsers.socio import SocioParser
-from core.database import (_create_tables, save_lessons, count_lessons,
+from core.database import (_create_tables, save_lessons, count_lessons, _migrate,
+                           get_or_create_group,
                            save_subgroup_lessons)
 from core.db_students import update_lesson_teachers
+import run_parser
 
 from tests import fake_site
 from tests.fake_site import FakeSite, day_table, lesson_div, broken_div
@@ -482,3 +485,133 @@ class TestTeacherSurvivesRewrite(unittest.TestCase):
         kept = self.conn.execute(
             "SELECT teacher FROM lessons WHERE subgroup = 'с101-1'").fetchone()
         self.assertEqual(kept['teacher'], 'Авдохина С.Б.')
+
+
+class TestSignalBecomesException(unittest.TestCase):
+    """
+    Прогон, убитый сигналом, обязан отметиться в parse_log.
+
+    09.09.2026 systemd убил проход по студентам по TimeoutStartSec: 639
+    студентов из 1101 уже лежали в базе, а снаружи не было ни записи
+    в журнале, ни алерта. Ветки перехвата в run_* ловят Exception, но SIGTERM
+    исключения не поднимает, а KeyboardInterrupt от Ctrl+C наследуется
+    от BaseException и проходит мимо. Оба случая закрываются одинаково —
+    обработчиком, который поднимает Interrupted.
+    """
+
+    def setUp(self):
+        # обработчики глобальные: вернуть как было, иначе поломаем соседей
+        self.saved = {s: signal.getsignal(s)
+                      for s in (signal.SIGTERM, signal.SIGINT)}
+        self.addCleanup(lambda: [signal.signal(s, h)
+                                 for s, h in self.saved.items()])
+
+    def test_interrupted_is_catchable_as_exception(self):
+        """Главное: иначе ветка partial так и не отработает."""
+        self.assertTrue(issubclass(run_parser.Interrupted, Exception))
+
+    def test_sigterm_handler_raises(self):
+        run_parser._install_signal_handlers()
+        handler = signal.getsignal(signal.SIGTERM)
+        self.assertTrue(callable(handler), "обработчик SIGTERM не поставлен")
+
+        with self.assertRaises(run_parser.Interrupted) as ctx:
+            handler(signal.SIGTERM, None)
+        self.assertIn('SIGTERM', str(ctx.exception))
+
+    def test_sigint_handler_raises(self):
+        """Ctrl+C молчал по той же причине, что и systemd."""
+        run_parser._install_signal_handlers()
+        handler = signal.getsignal(signal.SIGINT)
+
+        with self.assertRaises(run_parser.Interrupted) as ctx:
+            handler(signal.SIGINT, None)
+        self.assertIn('SIGINT', str(ctx.exception))
+
+    def test_handler_result_reaches_partial_branch(self):
+        """Проверка формы: то, что поднимает обработчик, ловится как Exception."""
+        run_parser._install_signal_handlers()
+        handler = signal.getsignal(signal.SIGTERM)
+
+        caught = None
+        try:
+            handler(signal.SIGTERM, None)
+        except Exception as e:          # ровно так написаны ветки в run_*
+            caught = e
+        self.assertIsInstance(caught, run_parser.Interrupted)
+
+
+class TestGroupLastSeen(unittest.TestCase):
+    """
+    Отметка «группа ещё есть на сайте».
+
+    Наборы выпускаются, коды исчезают из навигации, а строка в базе остаётся
+    навсегда. Без отметки бот не отличал «расписание ещё не выложили»
+    от «такой группы больше нет» и бодро писал «🎉 Нет занятий!» подписчику
+    пп402 каждый день (docs/TODO.md §1).
+    """
+
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        self.conn.row_factory = sqlite3.Row
+        self.addCleanup(self.conn.close)
+        # база, собранная до появления колонки
+        self.conn.executescript("""
+            CREATE TABLE faculties (
+                id INTEGER PRIMARY KEY, code TEXT, name TEXT, domain TEXT);
+            CREATE TABLE groups_ (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                faculty_id INTEGER NOT NULL,
+                code TEXT NOT NULL,
+                site_id TEXT, department TEXT, program TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(faculty_id, code));
+        """)
+        self.conn.execute(
+            "INSERT INTO faculties (id,code,name,domain) VALUES (1,'socio','Соцфак','x')")
+        for code in ('с403', 'пп402'):
+            self.conn.execute(
+                "INSERT INTO groups_ (faculty_id, code) VALUES (1, ?)", (code,))
+        self.conn.commit()
+
+    def last_seen(self, code):
+        return self.conn.execute(
+            "SELECT last_seen FROM groups_ WHERE code = ?", (code,)).fetchone()['last_seen']
+
+    def test_migration_marks_existing_groups_alive(self):
+        """Иначе до первого обхода сайта пропавшими выглядели бы все сразу."""
+        _migrate(self.conn)
+        today = date.today().isoformat()
+        self.assertEqual(self.last_seen('с403'), today)
+        self.assertEqual(self.last_seen('пп402'), today)
+
+    def test_parse_refreshes_only_groups_still_on_site(self):
+        """Обход обновляет живые; пропавшую обновить нечем — она отстаёт."""
+        _migrate(self.conn)
+        stale = (date.today() - timedelta(days=30)).isoformat()
+        self.conn.execute("UPDATE groups_ SET last_seen = ?", (stale,))
+        self.conn.commit()
+
+        # сайт отдал в навигации только эту группу
+        get_or_create_group(self.conn, faculty_id=1, code='с403')
+
+        self.assertEqual(self.last_seen('с403'), date.today().isoformat())
+        self.assertEqual(self.last_seen('пп402'), stale,
+                         "пропавшую группу обход трогать не должен")
+
+    def test_new_group_is_marked_on_creation(self):
+        _migrate(self.conn)
+        get_or_create_group(self.conn, faculty_id=1, code='с101')
+        self.assertEqual(self.last_seen('с101'), date.today().isoformat())
+
+    def test_migration_runs_once(self):
+        """Повторный вызов не должен воскрешать пропавшую группу."""
+        _migrate(self.conn)
+        stale = (date.today() - timedelta(days=30)).isoformat()
+        self.conn.execute("UPDATE groups_ SET last_seen = ?", (stale,))
+        self.conn.commit()
+
+        _migrate(self.conn)
+
+        self.assertEqual(self.last_seen('пп402'), stale,
+                         "миграция сработала второй раз и затёрла отметку")
