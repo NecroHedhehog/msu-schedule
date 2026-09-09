@@ -4,8 +4,25 @@
 по таймерам. Ниже — systemd, потому что он есть везде и умеет то, чего не
 умеет cron: перезапуск при падении, зависимости между юнитами, журнал.
 
-Ресурсы нужны смешные: база на 5700 занятий весит около 1.3 МБ, бот
-в поллинге ест десятки мегабайт. Хватит самой дешёвой VPS.
+Ресурсы нужны смешные: база на 6800 занятий весит 1.8 МБ, бот в поллинге
+ест десятки мегабайт. Хватит самой дешёвой VPS.
+
+## Чек-лист
+
+Отметить по ходу — каждый пункт раскрыт ниже:
+
+- [ ] Python 3.10+, пользователь `msu`, клон в `/opt/msu-schedule` — §1
+- [ ] `.env` скопирован руками, `chmod 600`, в нём `BOT_TOKEN` и `ADMIN_CHAT_ID` — §2
+- [ ] решено: базу переносим или собираем заново — §2.1
+- [ ] прогоны `socio` → `subgroups` → `teachers` → `students`, в этом порядке — §3
+- [ ] `msu-bot.service` запущен и переживает `reboot` — §4
+- [ ] таймеры `socio`, `subgroups`, `teachers` включены — §5
+- [ ] `msu-freshness.timer` включён, алерт в Telegram проверен — §6
+- [ ] бэкапы в `data/backups/` идут и чистятся — §7
+- [ ] в `parse_log` последний прогон `ok`, а не `warning`/`partial` — §9
+
+Отдельно: **дата смены семестра**. Коды групп на сайте переиспользуются,
+и без чистки под одним кодом смешаются два набора — §11.
 
 ---
 
@@ -48,8 +65,8 @@ sudo chmod 600 .env
 В `.env` боевой токен бота — он не должен попасть в git ни при каких
 обстоятельствах. Переносить только по scp, правами `600`.
 
-**Базу переносить или собирать заново?** Расписание собирается за двенадцать
-минут (`socio` + `teachers`), и свежее всегда лучше. Но в базе, кроме
+**Базу переносить или собирать заново?** Расписание собирается за четверть
+часа (`socio` + `subgroups` + `teachers`), и свежее всегда лучше. Но в базе, кроме
 расписания, лежит то, что парсером не восстанавливается: подписки
 пользователей на группы, их выбранные предметы, привязки к студентам и лог
 действий. Если бот уже кем-то используется, база переносится:
@@ -75,12 +92,23 @@ sudo chown msu:msu /opt/msu-schedule/data/schedule.db
 ```bash
 cd /opt/msu-schedule
 sudo -u msu .venv/bin/python run_parser.py socio      # ~2 мин
+sudo -u msu .venv/bin/python run_parser.py subgroups  # ~4 мин, строго после socio
 sudo -u msu .venv/bin/python run_parser.py teachers   # ~10 мин
 sudo -u msu .venv/bin/python run_parser.py students   # ~40 мин, можно позже
 ```
 
-Без `teachers` в расписании не будет ни одного имени: на страницах групп
-преподавателя нет вовсе (см. [SITE.md §5](SITE.md)).
+Порядок не произвольный, и пропуск любого прохода виден пользователю:
+
+| Пропустили | Что сломается |
+|---|---|
+| `socio` | нет расписания вообще |
+| `subgroups` | у первого курса нет языков, кнопка 🔤 Мой язык не появится |
+| `teachers` | в расписании нет ни одного имени: на страницах групп преподавателя нет вовсе ([SITE.md §5](SITE.md)) |
+| `students` | не работает поиск по фамилии и автоотметка предметов по выбору |
+
+`subgroups` идёт **после** `socio`: он сохраняет только те занятия, которых
+у группы ещё нет, и для этого расписание группы должно уже лежать в базе.
+Обратный порядок молча даст пустой результат.
 
 Если сайт лежит — не сидеть и не ждать вручную:
 
@@ -172,6 +200,27 @@ Unit=msu-parser@socio.service
 WantedBy=timers.target
 ```
 
+`/etc/systemd/system/msu-parser-subgroups.timer`:
+
+```ini
+[Unit]
+Description=Собирать языковые потоки первого курса
+
+[Timer]
+OnCalendar=*-*-* 05:30
+Persistent=true
+RandomizedDelaySec=600
+Unit=msu-parser@subgroups.service
+
+[Install]
+WantedBy=timers.target
+```
+
+Раз в сутки хватает: потоки заводят в начале семестра и потом почти не
+трогают. Частые прогоны `socio` их не затирают — `save_lessons` удаляет
+только занятия с пустой колонкой `subgroup`, и это сделано именно ради
+этого разделения.
+
 `/etc/systemd/system/msu-parser-teachers.timer`:
 
 ```ini
@@ -190,7 +239,9 @@ WantedBy=timers.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now msu-parser-socio.timer msu-parser-teachers.timer
+sudo systemctl enable --now msu-parser-socio.timer \
+                            msu-parser-subgroups.timer \
+                            msu-parser-teachers.timer
 systemctl list-timers 'msu-*'
 ```
 
@@ -327,6 +378,7 @@ sudo systemctl restart msu-bot
 sudo -u msu .venv/bin/python scripts/purge_old.py                        # посмотреть
 sudo -u msu .venv/bin/python scripts/purge_old.py --before ГГГГ-ММ-ДД --students --yes
 sudo -u msu .venv/bin/python run_parser.py socio
+sudo -u msu .venv/bin/python run_parser.py subgroups
 sudo -u msu .venv/bin/python run_parser.py teachers
 sudo -u msu .venv/bin/python run_parser.py students
 ```
@@ -334,6 +386,11 @@ sudo -u msu .venv/bin/python run_parser.py students
 Скрипт кладёт резервную копию базы рядом и по умолчанию ничего не удаляет.
 Привязки пользователей к студентам при `--students` сбрасываются — людям
 придётся заново найти себя по фамилии.
+
+Выбранные языковые потоки переживают смену семестра сами: они хранятся
+не номером подгруппы, а связкой «предмет → преподаватель → поток», и каждый
+уровень при устаревании отбрасывается отдельно. В худшем случае человек
+снова увидит все потоки — это поведение по умолчанию, а не ошибка.
 
 ## 12. Если что-то не так
 
