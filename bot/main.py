@@ -62,6 +62,7 @@ class Search(StatesGroup):
 # === Клавиатура ===
 
 LANG_BUTTON = "🔤 Мой язык"
+HELP_BUTTON = "❓ Помощь"
 
 
 def build_main_keyboard(with_language: bool = False):
@@ -73,6 +74,7 @@ def build_main_keyboard(with_language: bool = False):
     bottom_row = []
     if with_language:
         bottom_row.append(KeyboardButton(text=LANG_BUTTON))
+    bottom_row.append(KeyboardButton(text=HELP_BUTTON))
     if AD_FULL_TEXT:
         bottom_row.append(KeyboardButton(text=AD_BUTTON_LABEL))
     buttons.append(bottom_row)
@@ -85,7 +87,8 @@ LANG_KEYBOARD = build_main_keyboard(with_language=True)
 # Тексты кнопок нижней клавиатуры: их не надо принимать за поисковый запрос
 MAIN_BUTTON_TEXTS = {
     "📅 Сегодня", "📆 Завтра", "🗓 Неделя",
-    "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель", LANG_BUTTON,
+    "📋 Предметы", "👥 Сменить группу", "👨‍🏫 Преподаватель",
+    LANG_BUTTON, HELP_BUTTON,
 }
 if AD_BUTTON_LABEL:
     MAIN_BUTTON_TEXTS.add(AD_BUTTON_LABEL)
@@ -1079,74 +1082,115 @@ async def cmd_change_group(message: Message, state: FSMContext):
     await show_department_selection(message)
 
 
+HELP_SECTIONS = {
+    'subjects': (
+        "📋 <b>Предметы по выбору</b>\n\n"
+        "Бывает, на одну пару у группы стоят сразу несколько предметов: "
+        "кто-то ходит на один, кто-то на другой. Бот находит такие пары сам.\n\n"
+        "Нажми <b>📋 Предметы</b> и отметь свои — в расписании останутся "
+        "только они. Ничего не отметил — показывается всё, так что "
+        "не потеряешь.\n\n"
+        "Сбросить: 📋 Предметы → 🔄 Сбросить всё."
+    ),
+    'lang': (
+        "🔤 <b>Языки</b>\n\n"
+        "Языки идут не всей группой: часть учит английский, часть немецкий, "
+        "часть французский. У каждого потока свои преподаватель, время "
+        "и аудитория, поэтому в обычном расписании их нет вовсе — "
+        "бот показывает их блоком «не у всех» под днём.\n\n"
+        "Нажми <b>🔤 Мой язык</b> и выбери свой поток — останется только он. "
+        "Если преподаватель ведёт несколько групп, рядом показано время: "
+        "по нему и узнаешь своё занятие.\n\n"
+        "Языки есть только на первом курсе."
+    ),
+    'empty': (
+        "❓ <b>Почему пусто</b>\n\n"
+        "🎉 <b>Нет занятий</b> — выходной или в этот день правда ничего нет.\n\n"
+        "📭 <b>Расписание ещё не выложено</b> — дальше этой даты факультет "
+        "ничего не публиковал. Бот показывает ровно то, что есть на сайте.\n\n"
+        "📭 <b>Данных за этот день нет</b> — это уже прошлый семестр, "
+        "он не хранится."
+    ),
+    'group': (
+        "👥 <b>Группа и поиск</b>\n\n"
+        "Сменить: <b>👥 Сменить группу</b> → отделение → курс → группа.\n"
+        "Или просто напиши номер: <b>403</b>, <b>с403</b>, <b>пп201</b>, "
+        "<b>мг52МКПП</b>.\n\n"
+        "<b>🔍 Найти себя по фамилии</b> — бот сам поставит группу "
+        "и отметит твои предметы по выбору.\n\n"
+        "<b>👨‍🏫 Преподаватель</b> — покажу, где и когда он ведёт "
+        "в ближайшие две недели. Регистр не важен."
+    ),
+}
+
+
+def help_menu_keyboard(has_streams: bool) -> InlineKeyboardMarkup:
+    row = [InlineKeyboardButton(text="📋 Предметы по выбору", callback_data="help:subjects")]
+    rows = [row]
+    if has_streams:
+        rows.append([InlineKeyboardButton(text="🔤 Языки", callback_data="help:lang")])
+    rows.append([
+        InlineKeyboardButton(text="👥 Группа и поиск", callback_data="help:group"),
+        InlineKeyboardButton(text="❓ Почему пусто", callback_data="help:empty"),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+HELP_INTRO = (
+    "📖 <b>Как пользоваться</b>\n\n"
+    "📅 Сегодня, 📆 Завтра, 🗓 Неделя — расписание. Под ним кнопки, "
+    "чтобы листать дни и недели.\n"
+    "Номер группы можно просто написать: <b>403</b>, <b>пп201</b>.\n\n"
+    "О чём подробнее?"
+)
+
+
+def user_has_streams(conn, chat_id: int) -> bool:
+    return bool(conn.execute(
+        """SELECT 1 FROM subscriptions s JOIN lessons l ON l.group_id = s.group_id
+            WHERE s.chat_id = ? AND l.subgroup != '' AND l.date >= date('now') LIMIT 1""",
+        (chat_id,)).fetchone())
+
+
+@router.message(F.text == HELP_BUTTON)
 @router.message(Command('помощь', 'help', 'гайд', 'guide'))
 async def cmd_help(message: Message, state: FSMContext):
     await state.clear()
     do_track(message, 'help')
 
     conn = get_connection()
-    user = get_user_group(conn, message.chat.id)
-    has_streams = bool(conn.execute(
-        """SELECT 1 FROM subscriptions s JOIN lessons l ON l.group_id = s.group_id
-            WHERE s.chat_id = ? AND l.subgroup != '' AND l.date >= date('now') LIMIT 1""",
-        (message.chat.id,)).fetchone()) if user else False
+    has_streams = user_has_streams(conn, message.chat.id)
     conn.close()
 
-    text = (
-        "📖 <b>Как этим пользоваться</b>\n\n"
+    await message.answer(HELP_INTRO, parse_mode=ParseMode.HTML,
+                         reply_markup=help_menu_keyboard(has_streams))
 
-        "<b>Расписание</b>\n"
-        "📅 Сегодня и 📆 Завтра — на день. Под расписанием кнопки "
-        "«← Вчера» и «Завтра →», можно листать.\n"
-        "🗓 Неделя — вся неделя сразу, с листанием по неделям. "
-        "В выходные показывает следующую.\n\n"
 
-        "<b>📋 Предметы — если у вас есть предметы по выбору</b>\n"
-        "Бывает, что на одну и ту же пару у группы стоят сразу несколько "
-        "предметов: кто-то ходит на один, кто-то на другой. Бот такие пары "
-        "находит сам и предлагает отметить свои.\n"
-        "Отметил — в расписании останутся только твои. Не отметил ничего — "
-        "показываются все, ничего не потеряешь.\n"
-        "Передумал: 📋 Предметы → «🔄 Сбросить всё».\n\n"
+@router.callback_query(F.data.startswith('help:'))
+async def on_help_section(callback: CallbackQuery):
+    key = callback.data.split(':', 1)[1]
 
-        "<b>🔤 Языки — отдельная история</b>\n"
-        "Языки идут не всей группой: часть учит английский, часть немецкий, "
-        "часть французский, и у каждого потока свои преподаватель, время "
-        "и аудитория. В обычном расписании группы таких занятий нет вовсе — "
-        "бот показывает их отдельным блоком «не у всех» под днём.\n"
-        "Чтобы осталось только твоё — /язык (или кнопка 🔤 Мой язык). "
-        "Сначала язык, потом свой поток. Если преподаватель ведёт несколько "
-        "групп, рядом с ним показано время — по нему и узнаешь своё занятие.\n"
-        "Языки есть только на первом курсе, у остальных этой кнопки нет.\n\n"
+    if key == 'back':
+        conn = get_connection()
+        has_streams = user_has_streams(conn, callback.message.chat.id)
+        conn.close()
+        await callback.message.edit_text(
+            HELP_INTRO, parse_mode=ParseMode.HTML,
+            reply_markup=help_menu_keyboard(has_streams))
+        await callback.answer()
+        return
 
-        "<b>👨‍🏫 Преподаватель</b>\n"
-        "Нажми и напиши фамилию — покажу, где и когда он ведёт "
-        "в ближайшие две недели, и у каких групп. Регистр не важен.\n\n"
+    text = HELP_SECTIONS.get(key)
+    if not text:
+        await callback.answer("Раздел не найден")
+        return
 
-        "<b>Как выбрать группу</b>\n"
-        "👥 Сменить группу → отделение → курс → группа.\n"
-        "Или просто напиши номер: <b>403</b>, <b>с403</b>, <b>пп201</b>, "
-        "<b>мг52МКПП</b>.\n"
-        "Есть ещё «🔍 Найти себя по фамилии» — тогда бот сам поставит группу, "
-        "а заодно отметит твои предметы по выбору.\n\n"
-
-        "<b>Если пусто</b>\n"
-        "«🎉 Нет занятий» — выходной или в этот день правда ничего нет.\n"
-        "«📭 Расписание ещё не выложено» — дальше этой даты факультет "
-        "расписание пока не публиковал, бот не виноват.\n\n"
-
-        "<b>Команды</b>\n"
-        "/язык — выбрать свой языковой поток\n"
-        "/группа — сменить группу\n"
-        "/предметы — предметы по выбору\n"
-        "/помощь — этот текст"
-    )
-
-    if user and not has_streams:
-        text += "\n\n<i>У твоей группы языковых потоков нет — раздел про языки не пригодится.</i>"
-
-    await message.answer(text, parse_mode=ParseMode.HTML,
-                         reply_markup=keyboard_for(message.chat.id))
+    do_track_cb(callback, 'help_section', key)
+    await callback.message.edit_text(
+        text, parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="← Назад", callback_data="help:back")]]))
+    await callback.answer()
 
 
 # === Поиск: студент, преподаватель, группа ===

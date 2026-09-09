@@ -357,25 +357,50 @@ class LanguagePickerTest(BotTestCase):
         self.assertIsNone(db.resolve_user_stream(conn, self.chat.id, 1))
         conn.close()
 
-    async def test_guide_covers_both_features(self):
-        """Гайд должен объяснять и предметы по выбору, и языки."""
+    async def test_guide_is_short_and_offers_sections(self):
+        """
+        Гайд одним куском был простынёй на две тысячи знаков. Теперь короткий
+        экран с разделами по кнопкам.
+        """
         await self.pick_group()
-        text, _ = await self.send_text("/помощь")
+        text, buttons = await self.send_text("/помощь")
 
-        self.assertIn('предметы по выбору', text.lower())
-        self.assertIn('/язык', text)
+        self.assertLess(len(text), 400, "главный экран должен быть коротким")
+        self.assertTrue(any('Предметы по выбору' in b for b in buttons))
+        self.assertTrue(any('Языки' in b for b in buttons))
+
+    async def test_help_button_works_like_command(self):
+        await self.pick_group()
+        text, buttons = await self.send_text(self.bot_main.HELP_BUTTON)
+        self.assertIn('Как пользоваться', text)
+        self.assertTrue(buttons)
+
+    async def test_sections_open_and_go_back(self):
+        await self.pick_group()
+        await self.send_text("/помощь")
+
+        text, buttons = await self.press("help:lang")
         self.assertIn('не у всех', text.lower())
-        self.assertNotIn('языковых потоков нет', text, "у этой группы потоки есть")
+        self.assertIn('← Назад', buttons)
 
-    async def test_guide_notes_when_group_has_no_streams(self):
+        text, buttons = await self.press("help:subjects")
+        self.assertIn('на одну пару', text.lower())
+
+        text, buttons = await self.press("help:back")
+        self.assertIn('Как пользоваться', text)
+        self.assertTrue(any('Предметы по выбору' in b for b in buttons))
+
+    async def test_no_language_section_without_streams(self):
+        """Кнопки про языки не должно быть у тех, у кого языков нет."""
         conn = db.get_connection()
         conn.execute("DELETE FROM lessons WHERE subgroup != ''")
         conn.commit()
         conn.close()
 
         await self.pick_group()
-        text, _ = await self.send_text("/помощь")
-        self.assertIn('языковых потоков нет', text)
+        text, buttons = await self.send_text("/помощь")
+        self.assertFalse(any('Языки' in b for b in buttons))
+        self.assertTrue(any('Предметы по выбору' in b for b in buttons))
 
     async def test_stale_choice_is_ignored(self):
         """
