@@ -140,6 +140,65 @@ def format_streams(streams: list, choice: dict = None) -> str:
     return '\n'.join(lines)
 
 
+def pairs_word(n: int) -> str:
+    if n % 10 == 1 and n % 100 != 11:
+        return 'пара'
+    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        return 'пары'
+    return 'пар'
+
+
+def group_by_pair(lessons: list) -> list:
+    """[(номер пары, [занятия]), ...] по возрастанию. На одной паре может
+    стоять несколько предметов — это предметы по выбору."""
+    by_pair = {}
+    for l in lessons:
+        by_pair.setdefault(l['pair_number'], []).append(l)
+    return sorted(by_pair.items())
+
+
+GAP_MIN_MINUTES = 30
+
+
+def minutes_of(t: str) -> int:
+    h, m = t.split(':')
+    return int(h) * 60 + int(m)
+
+
+def format_duration(minutes: int) -> str:
+    """80 → «1 ч 20 мин»."""
+    h, m = divmod(minutes, 60)
+    if h and m:
+        return f"{h} ч {m} мин"
+    if h:
+        return f"{h} ч"
+    return f"{m} мин"
+
+
+def format_gap(prev_items: list, next_items: list, free: int):
+    """
+    Строка окна между парами или None, если окна нет.
+
+    Время берётся из самих занятий — конец предыдущего и начало следующего, —
+    а не из таблицы пар. Так оно остаётся верным и там, где у группы
+    своё расписание звонков.
+
+    Пропущенных пар может не быть, а окно быть: по средам МФК начинается
+    через час с лишним после третьей пары, хотя номера идут подряд. Таких
+    дней в базе 265 — промолчать о них значит соврать.
+    """
+    end = max(l['time_end'] for l in prev_items)
+    start = min(l['time_start'] for l in next_items)
+
+    if free:
+        return f"  ⌛ <i>окно {free} {pairs_word(free)} · {end}–{start}</i>"
+
+    idle = minutes_of(start) - minutes_of(end)
+    if idle >= GAP_MIN_MINUTES:
+        return f"  ⌛ <i>перерыв {format_duration(idle)} · {end}–{start}</i>"
+    return None
+
+
 def format_lesson(lesson) -> str:
     """Форматировать занятие: две строки — пара + преподаватель."""
     emoji = TYPE_EMOJI.get(lesson['lesson_type'], '📌')
@@ -196,9 +255,28 @@ def format_day_schedule(lessons: list, d: date, with_ad: bool = True,
         # У группы пар нет, а языковой поток есть — так бывает
         text = f"{header}\n  —" + streams_text
     else:
+        # Пары, которые у человека заняты. Выбранный языковой поток тоже
+        # занимает пару, хотя показывается отдельным блоком: если его
+        # не учесть, бот покажет окно там, где человек сидит на английском.
+        occupied = {l['pair_number'] for l in main}
+        if stream_choice:
+            occupied |= {l['pair_number']
+                         for l in apply_stream_choice(streams, stream_choice)}
+
         lines = [header]
-        for l in main:
-            lines.append(format_lesson(l))
+        groups = group_by_pair(main)
+        for i, (pair, items) in enumerate(groups):
+            if i:
+                prev_pair, prev_items = groups[i - 1]
+                between = [p for p in range(prev_pair + 1, pair)]
+                # Окно показываем, только если промежуток пуст целиком:
+                # частично занятый — не окно, а лишний повод для путаницы
+                if not any(p in occupied for p in between):
+                    gap = format_gap(prev_items, items, len(between))
+                    if gap:
+                        lines.append(gap)
+            for l in items:
+                lines.append(format_lesson(l))
         text = '\n'.join(lines) + streams_text
 
     if with_ad and AD_TEASER:
