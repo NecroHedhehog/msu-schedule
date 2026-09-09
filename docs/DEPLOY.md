@@ -161,6 +161,34 @@ sudo systemctl enable --now msu-bot
 sudo systemctl status msu-bot
 ```
 
+### Часовой пояс
+
+Бот берёт дату наивным `date.today()`, а факультет московский. Если сервер
+стоит не в московском поясе, «Сегодня» будет врать в часы расхождения:
+на амстердамской VPS (UTC+2) с полуночи до часу ночи по Москве кнопка
+показывала вчерашний день.
+
+Менять системный пояс правильно не всегда — на машине могут жить чужие
+сервисы. Достаточно задать его нашим юнитам:
+
+```bash
+for u in msu-bot.service 'msu-parser@.service'; do
+  sudo mkdir -p "/etc/systemd/system/$u.d"
+  printf '[Service]\nEnvironment=TZ=Europe/Moscow\n' | \
+    sudo tee "/etc/systemd/system/$u.d/timezone.conf"
+done
+sudo systemctl daemon-reload && sudo systemctl restart msu-bot
+```
+
+Проверить: `sudo -u msu .venv/bin/python -c "from datetime import datetime; print(datetime.now())"`
+под юнитом должно дать московское время.
+
+**`OnCalendar` в таймерах это не покрывает** — таймеры считают время
+в системном поясе. На сервере в UTC+2 расписание из §5 срабатывает
+в 08:10/14:10/20:10 по Москве. Если нужны ровно московские часы, либо
+сдвиньте `OnCalendar`, либо припишите таймерам `Timezone=Europe/Moscow`
+(systemd 252+).
+
 ## 5. Парсер по таймерам
 
 Данные живут с разной скоростью, поэтому проходы разнесены. Расписание правят
@@ -258,6 +286,31 @@ systemctl list-timers 'msu-*'
 Проход по студентам в таймеры не ставится — он на сорок минут и три с половиной
 тысячи запросов. Запускать руками раз в семестр, а на середине семестра, если
 понадобится, с `--resume`.
+
+**`TimeoutStartSec=3600` этому проходу мал.** Замер 09.09.2026: прогон дошёл
+до 639 студентов из 1101 и был убит systemd ровно через час. «Сорок минут»
+из этого файла — оценка по хорошему дню, реальный сайт медленнее. Поднимать
+только этому экземпляру шаблона, остальным режимам часа хватает:
+
+```bash
+sudo mkdir -p '/etc/systemd/system/msu-parser@students.service.d'
+printf '[Service]\nTimeoutStartSec=4h\n' | \
+  sudo tee '/etc/systemd/system/msu-parser@students.service.d/timeout.conf'
+sudo systemctl daemon-reload
+```
+
+Шаблон не умеет принимать `--resume` — добор запускать разовым юнитом:
+
+```bash
+sudo systemd-run --unit=msu-students-resume --collect \
+  --property=User=msu --property=Group=msu \
+  --property=WorkingDirectory=/opt/msu-schedule \
+  --setenv=TZ=Europe/Moscow \
+  /opt/msu-schedule/.venv/bin/python run_parser.py students --resume
+```
+
+`--resume` на `parse_log` не смотрит: он пропускает группы, у которых уже
+собраны предметы. Поэтому обрыв без записи в журнале его не ломает.
 
 ## 6. Проверка свежести
 
