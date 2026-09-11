@@ -64,6 +64,14 @@ def _register_functions(conn: sqlite3.Connection):
 
 def _create_tables(conn: sqlite3.Connection):
     conn.executescript("""
+        CREATE TABLE IF NOT EXISTS alert_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind TEXT NOT NULL,
+            subject_key TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS faculties (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             code TEXT UNIQUE NOT NULL,
@@ -402,6 +410,41 @@ def delete_streams_by_subject(conn, markers) -> int:
     )
     conn.commit()
     return cur.rowcount
+
+
+def claim_alert(conn, kind: str, subject_key: str, text: str,
+                repeat_after_hours: float) -> bool:
+    """
+    Спросить разрешение отправить алерт и сразу его занять.
+
+    True — такого сообщения давно не было, шлём. False — точно такое же
+    уже уходило меньше repeat_after_hours назад, молчим.
+
+    Нужно потому, что парсер живёт один прогон: троттлинг в памяти, как
+    у бота, тут не работает — каждый запуск начинал бы с чистого листа
+    и слал бы одно и то же по три раза в день.
+
+    Сравнивается ПОЛНЫЙ текст: если список пустых групп изменился, это
+    новость, и она должна дойти сразу, не дожидаясь суток.
+    """
+    row = conn.execute(
+        """SELECT (julianday('now') - julianday(created_at)) * 24 AS hours
+             FROM alert_log
+            WHERE kind = ? AND subject_key = ? AND text = ?
+            ORDER BY id DESC LIMIT 1""",
+        (kind, subject_key, text)
+    ).fetchone()
+
+    if row is not None and row['hours'] is not None \
+            and row['hours'] < repeat_after_hours:
+        return False
+
+    conn.execute(
+        "INSERT INTO alert_log (kind, subject_key, text) VALUES (?, ?, ?)",
+        (kind, subject_key, text)
+    )
+    conn.commit()
+    return True
 
 
 def log_parse(conn, faculty_code, status, lessons_count=0, groups_count=0, message=''):

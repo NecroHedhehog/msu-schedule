@@ -15,13 +15,29 @@ from core.database import get_connection
 from core.alerts import alert_stale_data
 
 
-from core.config import PARSER_INTERVAL_HOURS
+from core.config import (PARSER_INTERVAL_HOURS, FRESHNESS_MAX_HOURS,
+                         FRESHNESS_SKIP)
 
-# Даём парсеру два интервала форы, прежде чем ругаться
+# Запасной порог для прохода, которого нет в FRESHNESS_MAX_HOURS:
+# два интервала форы, прежде чем ругаться
 DEFAULT_MAX_HOURS = PARSER_INTERVAL_HOURS * 2
 
 
-def check(max_hours: float = DEFAULT_MAX_HOURS):
+def max_hours_for(code: str, override: float = None) -> float:
+    """
+    Порог свежести для конкретного прохода.
+
+    Один общий порог не работает: socio ходит трижды в день, подгруппы —
+    раз в сутки, преподаватели — трижды в неделю. С общим порогом в 8 часов
+    каждая ночная проверка исправно сообщала, что суточный проход «устарел»
+    через 15 часов. Это не находка, это его нормальный ритм.
+    """
+    if override is not None:
+        return override
+    return FRESHNESS_MAX_HOURS.get(code, DEFAULT_MAX_HOURS)
+
+
+def check(max_hours: float = None):
     conn = get_connection()
 
     faculties = conn.execute(
@@ -35,6 +51,15 @@ def check(max_hours: float = DEFAULT_MAX_HOURS):
 
     for row in faculties:
         code = row['faculty_code']
+
+        # Ручные проходы не следят за расписанием и «устаревают» всегда:
+        # проход по студентам гоняют раз в семестр, и ночная тревога
+        # о том, что он был двое суток назад, — ложная по построению.
+        if code in FRESHNESS_SKIP:
+            print(f"[freshness] {code}: пропущен, запускается руками")
+            continue
+
+        limit = max_hours_for(code, max_hours)
 
         last_ok = conn.execute(
             """SELECT created_at FROM parse_log
@@ -53,17 +78,20 @@ def check(max_hours: float = DEFAULT_MAX_HOURS):
             (last_ok['created_at'],)
         ).fetchone()['hours']
 
-        if hours > max_hours:
+        if hours > limit:
             alert_stale_data(code, hours_since=hours)
-            print(f"[freshness] {code}: данные устарели ({hours:.0f}ч)")
+            print(f"[freshness] {code}: данные устарели ({hours:.0f}ч при пороге {limit:.0f}ч)")
         else:
-            print(f"[freshness] {code}: ок ({hours:.1f}ч назад)")
+            print(f"[freshness] {code}: ок ({hours:.1f}ч назад, порог {limit:.0f}ч)")
 
     conn.close()
 
 
 if __name__ == '__main__':
-    max_h = DEFAULT_MAX_HOURS
+    # None, а не DEFAULT_MAX_HOURS: иначе общий порог перебил бы
+    # индивидуальные из FRESHNESS_MAX_HOURS, ради которых всё и затевалось.
+    # --hours остаётся способом проверить вручную.
+    max_h = None
     if '--hours' in sys.argv:
         idx = sys.argv.index('--hours')
         if idx + 1 < len(sys.argv):
