@@ -32,6 +32,11 @@ class SocioParser(BaseParser):
     TITLE_RE = re.compile(r"(.+?) по '(.+)'")
     PAIR_CELL_CLASS = 'TmTblC'
     LESSON_ID = 'LESS'
+    # Колонка-линейка слева от дня: номер пары подписан временем в title
+    # («10.40-12.10»). Время нужно только чтобы отличить номер пары
+    # от случайной цифры в ячейке занятия — само оно не берётся, см. §8.
+    PAIR_NUM_RE = re.compile(r'^[1-8]$')
+    PAIR_TIME_TITLE_RE = re.compile(r'^\d{1,2}[.:]\d{2}\s*-\s*\d{1,2}[.:]\d{2}$')
     ABBR_COLOR = '#004000'
     TYPE_KEYWORDS = ('Лк', 'Сем', 'Зч', 'Экз', 'Пр', 'Конс', 'Доп')
 
@@ -685,6 +690,41 @@ class SocioParser(BaseParser):
 
         return self.LESSON_TITLE_RE.sub(fix, html)
 
+    def _pair_numbers(self, day_table, cell_count: int):
+        """
+        Настоящие номера пар для таблицы дня, или None, если не вышло.
+
+        Позицию ячейки использовать нельзя: сайт выбрасывает пустые верхние
+        строки. У мг54САГУсд день начинается со второй пары, строки первой
+        нет вовсе — и `pair = i + 1` сдвигал весь день на пару вверх, ставя
+        человеку девятичасовую пару вместо десяти сорока. Проверено
+        12.09.2026 на скриншоте с сайта: там 2,3,4,5,6, в базе лежало 1,2,3,5.
+
+        Номера есть в разметке — в колонке-линейке, общей на всю строку дня
+        недели (SITE.md §7). Ищем их у ближайшего предка-строки: каждый
+        номер подписан временем в title, и по этому признаку он отличается
+        от цифры, случайно оказавшейся в ячейке занятия.
+
+        Длина линейки обязана совпасть с числом ячеек дня — иначе
+        соответствие «строка к строке» не гарантировано, и лучше честно
+        отказаться, чем молча разложить занятия не по тем парам.
+        """
+        week_row = day_table.find_parent('tr')
+        while week_row is not None:
+            numbers = [
+                int(td.get_text(strip=True))
+                for td in week_row.find_all('td')
+                if self.PAIR_NUM_RE.match(td.get_text(strip=True) or '')
+                and self.PAIR_TIME_TITLE_RE.match((td.get('title') or '').strip())
+            ]
+            if len(numbers) == cell_count:
+                return numbers
+            if numbers:
+                # линейка нашлась, но не той длины — это уже не наш случай
+                return None
+            week_row = week_row.find_parent('tr')
+        return None
+
     def _parse_page(self, html):
         soup = BeautifulSoup(self._repair_lesson_titles(html), 'html.parser')
         lessons = []
@@ -707,8 +747,14 @@ class SocioParser(BaseParser):
             except ValueError:
                 pass
 
-            for i, cell in enumerate(table.find_all('td', class_=self.PAIR_CELL_CLASS)):
-                pair = i + 1
+            cells = table.find_all('td', class_=self.PAIR_CELL_CLASS)
+            numbers = self._pair_numbers(table, len(cells))
+            if numbers is None:
+                self._note_missing_ruler(raw_date, len(cells))
+                numbers = list(range(1, len(cells) + 1))
+
+            for i, cell in enumerate(cells):
+                pair = numbers[i]
                 if is_wednesday and pair in PAIR_TIMES_WED_MFK:
                     t_start, t_end = PAIR_TIMES_WED_MFK[pair]
                 else:

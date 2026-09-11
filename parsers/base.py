@@ -53,6 +53,11 @@ class BaseParser(ABC):
         self.unparsed_blocks = 0
         self.unparsed_samples = []
         self.repaired_titles = 0
+        # Дни, где номер пары не удалось прочитать из разметки и пришлось
+        # считать по позиции ячейки. Позиция врёт, когда сайт выбрасывает
+        # пустые верхние строки, поэтому такие дни надо видеть.
+        self.days_without_ruler = 0
+        self.ruler_samples = []
 
     # ======= Статистика прогона =======
 
@@ -63,6 +68,7 @@ class BaseParser(ABC):
             'retries_used': self.retries_used,
             'unparsed_blocks': self.unparsed_blocks,
             'repaired_titles': self.repaired_titles,
+            'days_without_ruler': self.days_without_ruler,
             'failed_urls': list(self.failed_urls),
         }
 
@@ -72,8 +78,21 @@ class BaseParser(ABC):
             f"провалено: {self.requests_failed}, "
             f"повторов: {self.retries_used}, "
             f"нераспознанных блоков: {self.unparsed_blocks}, "
-            f"починено заголовков: {self.repaired_titles}"
+            f"починено заголовков: {self.repaired_titles}, "
+            f"дней без линейки пар: {self.days_without_ruler}"
         )
+
+    def _note_missing_ruler(self, date_hint: str, cells: int):
+        """
+        День, у которого не нашлось колонки с номерами пар.
+
+        Номер пришлось взять по позиции ячейки, а это верно только когда
+        сайт рисует все строки от первой пары. Если он выбросил пустые
+        верхние — весь день уедет вверх, и молча.
+        """
+        self.days_without_ruler += 1
+        if len(self.ruler_samples) < 10:
+            self.ruler_samples.append(f"{date_hint}: {cells} ячеек")
 
     def _note_unparsed(self, title: str, date_hint: str = '', pair_hint=''):
         """Блок занятия, который парсер не понял. Раньше такие терялись молча."""
