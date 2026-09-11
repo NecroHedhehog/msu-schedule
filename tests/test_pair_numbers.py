@@ -106,5 +106,54 @@ class TestRulerFallback(unittest.TestCase):
         self.assertIn('дней без линейки пар: 1', self.parser.stats_line())
 
 
+
+
+class TestTeacherPageUsesTheSameRuler(unittest.TestCase):
+    """
+    Страница преподавателя разбирается тем же правилом.
+
+    Имя ищет своё занятие по (группа, дата, номер пары, предмет).
+    Если сторона группы считает пары по разметке, а сторона преподавателя
+    по позиции, ключи расходятся и привязка рвётся — ровно это и вышло
+    после первой половины правки: 168 имён отвалилось.
+    """
+
+    def setUp(self):
+        self.parser = SocioParser()
+
+    @staticmethod
+    def teacher_day(first_pair, subjects):
+        ruler = ''.join(
+            f'<tr><td title="10.40-12.10">{first_pair + i}</td>'
+            f'<td class="TmTblC"></td></tr>' for i in range(len(subjects)))
+        cells = ''.join(
+            f'<tr><td class="TmTblC">'
+            f'<div id="LESS" title="Семинар по \u0027{s}\u0027 у мг54САГУсд"></div>'
+            f'</td></tr>' for s in subjects)
+        return (f'<table><tr>'
+                f'<td><table>{ruler}</table></td>'
+                f'<td><table><tr><td>14.09.2026</td></tr>{cells}</table></td>'
+                f'</tr></table>')
+
+    def test_pairs_come_from_the_ruler(self):
+        html = self.teacher_day(2, ['Философия', 'Социология'])
+        got = self.parser._parse_teacher_page(html, 'Иванов И.И.')
+        self.assertEqual([l['pair_number'] for l in got], [2, 3],
+                         "страница преподавателя всё ещё считает пары по позиции")
+
+    def test_groups_are_still_extracted(self):
+        html = self.teacher_day(2, ['Философия'])
+        got = self.parser._parse_teacher_page(html, 'Иванов И.И.')
+        self.assertEqual(got[0]['group_codes'], ['мг54САГУсд'])
+
+    def test_missing_ruler_is_counted_here_too(self):
+        html = ('<table><tr><td><table><tr><td>14.09.2026</td></tr>'
+                '<tr><td class="TmTblC">'
+                '<div id="LESS" title="Семинар по \u0027Философия\u0027 у мг54САГУсд"></div>'
+                '</td></tr></table></td></tr></table>')
+        self.parser._parse_teacher_page(html, 'Иванов И.И.')
+        self.assertEqual(self.parser.days_without_ruler, 1)
+
+
 if __name__ == '__main__':
     unittest.main()

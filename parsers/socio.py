@@ -517,8 +517,18 @@ class SocioParser(BaseParser):
             if not table:
                 continue
 
-            for i, cell in enumerate(table.find_all('td', class_=self.PAIR_CELL_CLASS)):
-                pair = i + 1
+            # Номер пары читаем из линейки, как и на странице группы.
+            # Иначе смысла в правке нет: имя ищет своё занятие по
+            # (группа, дата, НОМЕР ПАРЫ, предмет), и сдвиг на любой
+            # из двух сторон рвёт привязку.
+            cells = table.find_all('td', class_=self.PAIR_CELL_CLASS)
+            numbers = self._pair_numbers(table, len(cells))
+            if numbers is None:
+                self._note_missing_ruler(raw_date, len(cells))
+                numbers = list(range(1, len(cells) + 1))
+
+            for i, cell in enumerate(cells):
+                pair = numbers[i]
 
                 for div in cell.find_all('div', id=self.LESSON_ID):
                     title = div.get('title', '')
